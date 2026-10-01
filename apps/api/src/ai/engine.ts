@@ -43,5 +43,12 @@ export async function extractTransaction(message: string): Promise<Extraction> {
   if (!parsed) {
     throw new Error("AI did not return a parseable extraction");
   }
-  return parsed;
+
+  // The model sometimes returns "" instead of null for "no question" even
+  // though the schema declares it nullable — normalize here so downstream
+  // code can rely on a real null.
+  return {
+    ...parsed,
+    pergunta_esclarecimento: parsed.pergunta_esclarecimento || null,
+  };
 }
