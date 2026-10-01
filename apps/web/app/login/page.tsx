@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { ThemeToggle } from "../components/ThemeToggle";
 
 export default function LoginPage() {
   return (
@@ -43,62 +44,60 @@ function LoginForm() {
   }
 
   return (
-    <main style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <form
-        onSubmit={onSubmit}
-        style={{ background: "#1a1d24", padding: 32, borderRadius: 12, width: 320, display: "flex", flexDirection: "column", gap: 16 }}
-      >
-        <h1 style={{ fontSize: 20, margin: 0 }}>Meu Assessor</h1>
+    <main
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 24,
+        position: "relative",
+      }}
+    >
+      <div style={{ position: "absolute", top: 20, right: 20 }}>
+        <ThemeToggle />
+      </div>
 
-        <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13, color: "#999" }}>
-          WhatsApp
-          <input
-            type="text"
-            value={whatsappPhone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="+5511999998888"
-            required
-            style={inputStyle}
-          />
-        </label>
+      <form onSubmit={onSubmit} className="panel" style={{ width: 340, padding: 32 }}>
+        <p className="eyebrow">extrato digital</p>
+        <h1 style={{ fontSize: 22, marginTop: 4 }}>Meu Assessor</h1>
+        <hr className="hairline" style={{ margin: "20px 0" }} />
 
-        <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13, color: "#999" }}>
-          Senha
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            style={inputStyle}
-          />
-        </label>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            <span className="eyebrow">WhatsApp</span>
+            <input
+              type="text"
+              value={whatsappPhone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="+5511999998888"
+              required
+              className="field mono"
+            />
+          </label>
 
-        {error && <p style={{ color: "#f87171", fontSize: 13, margin: 0 }}>{error}</p>}
+          <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            <span className="eyebrow">Senha</span>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="field"
+            />
+          </label>
 
-        <button type="submit" disabled={loading} style={buttonStyle}>
-          {loading ? "Entrando..." : "Entrar"}
-        </button>
+          {error && (
+            <p style={{ color: "var(--vermelho)", fontSize: 13, margin: 0 }} role="alert">
+              {error}
+            </p>
+          )}
+
+          <button type="submit" disabled={loading} className="btn btn-primary" style={{ marginTop: 6 }}>
+            {loading ? "Entrando…" : "Entrar"}
+          </button>
+        </div>
       </form>
     </main>
   );
 }
-
-const inputStyle: React.CSSProperties = {
-  background: "#0f1115",
-  border: "1px solid #2a2d34",
-  borderRadius: 8,
-  padding: "8px 10px",
-  color: "#e8e8e8",
-  fontSize: 14,
-};
-
-const buttonStyle: React.CSSProperties = {
-  background: "#3b82f6",
-  color: "white",
-  border: "none",
-  borderRadius: 8,
-  padding: "10px 0",
-  fontSize: 14,
-  fontWeight: 600,
-  cursor: "pointer",
-};

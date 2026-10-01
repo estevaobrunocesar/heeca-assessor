@@ -6,6 +6,10 @@ export const ExtractionSchema = z.object({
   categoria: z.string().nullable(),
   subcategoria: z.string().nullable(),
   descricao: z.string(),
+  conta: z
+    .string()
+    .nullable()
+    .describe("Bank/account mention if the user named one (e.g. 'Itaú', 'cartão Nubank'), otherwise null"),
   data_relativa: z.string().describe("e.g. 'hoje', 'ontem', 'sabado', or an ISO date if explicit"),
   recorrente: z.boolean(),
   parcelado: z.boolean(),

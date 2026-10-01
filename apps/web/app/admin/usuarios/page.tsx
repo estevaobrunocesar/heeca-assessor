@@ -44,31 +44,36 @@ export default async function UsersAdminPage() {
   const users = await getUsers();
 
   return (
-    <main style={{ padding: 32, maxWidth: 800, margin: "0 auto" }}>
-      <h1>Usuários</h1>
+    <main style={{ maxWidth: 800, margin: "0 auto", padding: "40px 24px 64px" }}>
+      <p className="eyebrow">Acesso</p>
+      <h1 style={{ fontSize: 22, marginTop: 4 }}>Usuários</h1>
 
-      <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 20 }}>
+      <table style={{ marginTop: 28 }}>
         <thead>
-          <tr style={{ textAlign: "left", borderBottom: "1px solid #2a2d34", color: "#999", fontSize: 13 }}>
-            <th style={thStyle}>Nome</th>
-            <th style={thStyle}>WhatsApp</th>
-            <th style={thStyle}>Perfil</th>
-            <th style={thStyle}>Status</th>
-            <th style={thStyle}></th>
+          <tr>
+            <th>Nome</th>
+            <th>WhatsApp</th>
+            <th>Perfil</th>
+            <th>Status</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
           {users.map((u) => (
-            <tr key={u.id} style={{ borderBottom: "1px solid #1f2128" }}>
-              <td style={tdStyle}>{u.name}</td>
-              <td style={tdStyle}>{u.whatsappPhone}</td>
-              <td style={tdStyle}>{u.role === "ADMIN" ? "Administrador" : "Usuário"}</td>
-              <td style={tdStyle}>{u.status === "ACTIVE" ? "Ativo" : "Inativo"}</td>
-              <td style={tdStyle}>
+            <tr key={u.id}>
+              <td>{u.name}</td>
+              <td className="mono">{u.whatsappPhone}</td>
+              <td>{u.role === "ADMIN" ? "Administrador" : "Usuário"}</td>
+              <td>
+                <span className={u.status === "ACTIVE" ? "" : "eyebrow"} style={{ color: u.status === "ACTIVE" ? "var(--azul)" : "var(--muted)" }}>
+                  {u.status === "ACTIVE" ? "Ativo" : "Inativo"}
+                </span>
+              </td>
+              <td>
                 <form action={toggleStatus}>
                   <input type="hidden" name="id" value={u.id} />
                   <input type="hidden" name="status" value={u.status} />
-                  <button type="submit" style={linkButtonStyle}>
+                  <button type="submit" className="btn-ghost" style={{ border: "none", padding: 0 }}>
                     {u.status === "ACTIVE" ? "Desativar" : "Ativar"}
                   </button>
                 </form>
@@ -78,50 +83,19 @@ export default async function UsersAdminPage() {
         </tbody>
       </table>
 
-      <h2 style={{ marginTop: 40, fontSize: 16 }}>Novo usuário</h2>
-      <form action={createUser} style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12 }}>
-        <input name="name" placeholder="Nome" required style={inputStyle} />
-        <input name="whatsappPhone" placeholder="+5511999998888" required style={inputStyle} />
-        <input name="password" type="password" placeholder="Senha" required style={inputStyle} />
-        <select name="role" defaultValue="USER" style={inputStyle}>
+      <h2 style={{ fontSize: 15, marginTop: 40 }}>Novo usuário</h2>
+      <form action={createUser} style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+        <input name="name" placeholder="Nome" required className="field" />
+        <input name="whatsappPhone" placeholder="+5511999998888" required className="field mono" />
+        <input name="password" type="password" placeholder="Senha" required className="field" />
+        <select name="role" defaultValue="USER" className="field">
           <option value="USER">Usuário</option>
           <option value="ADMIN">Administrador</option>
         </select>
-        <button type="submit" style={buttonStyle}>
+        <button type="submit" className="btn btn-primary">
           Criar
         </button>
       </form>
     </main>
   );
 }
-
-const inputStyle: React.CSSProperties = {
-  background: "#1a1d24",
-  border: "1px solid #2a2d34",
-  borderRadius: 8,
-  padding: "8px 10px",
-  color: "#e8e8e8",
-  fontSize: 14,
-};
-
-const buttonStyle: React.CSSProperties = {
-  background: "#3b82f6",
-  color: "white",
-  border: "none",
-  borderRadius: 8,
-  padding: "0 16px",
-  fontSize: 14,
-  cursor: "pointer",
-};
-
-const linkButtonStyle: React.CSSProperties = {
-  background: "none",
-  border: "none",
-  color: "#3b82f6",
-  cursor: "pointer",
-  fontSize: 13,
-  padding: 0,
-};
-
-const thStyle: React.CSSProperties = { padding: "8px 12px" };
-const tdStyle: React.CSSProperties = { padding: "10px 12px", fontSize: 14 };

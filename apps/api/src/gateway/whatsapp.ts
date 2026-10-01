@@ -118,8 +118,9 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
   }
 
   const emoji = extraction.tipo === "RECEITA" ? "💰" : "⛽";
+  const accountLine = result.accountName ? `\nConta: ${result.accountName}` : "";
   return reply(
     res,
-    `${emoji} Anotado!\nR$ ${extraction.valor!.toFixed(2)}\nCategoria: ${extraction.categoria}\nDescrição: ${extraction.descricao}`,
+    `${emoji} Anotado!\nR$ ${extraction.valor!.toFixed(2)}\nCategoria: ${extraction.categoria}\nDescrição: ${extraction.descricao}${accountLine}`,
   );
 }

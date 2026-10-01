@@ -17,7 +17,10 @@ Regras:
 - "data_relativa" deve conter a referencia temporal tal como dita (hoje, ontem, sabado passado, etc),
   ou uma data ISO se o usuario disse uma data explicita. A resolucao para data real acontece fora da IA.
 - Categorias sugeridas (despesas): Casa, Alimentacao, Transporte, Saude, Educacao, Lazer, Financeiro.
-- Categorias sugeridas (receitas): Salario, Comissao, Freelance, Vendas, Investimentos, Reembolso, Outros.`;
+- Categorias sugeridas (receitas): Salario, Comissao, Freelance, Vendas, Investimentos, Reembolso, Outros.
+- Se o usuario mencionar um banco, cartao ou conta especifica (ex: "no cartao Nubank", "da conta do Itau"),
+  preencha "conta" com esse nome tal como dito. Se nao mencionar nenhuma conta, deixe "conta" como null —
+  NAO assuma uma conta padrao, isso e resolvido fora da IA.`;
 
 export async function transcribeAudio(audioBuffer: Buffer, filename: string): Promise<string> {
   const file = new File([audioBuffer], filename, { type: "audio/ogg" });
@@ -44,11 +47,21 @@ export async function extractTransaction(message: string): Promise<Extraction> {
     throw new Error("AI did not return a parseable extraction");
   }
 
-  // The model sometimes returns "" instead of null for "no question" even
-  // though the schema declares it nullable — normalize here so downstream
-  // code can rely on a real null.
+  // The model sometimes returns "", "null" or "nenhuma" instead of an actual
+  // null for nullable string fields, even though the schema declares them
+  // nullable — normalize here so downstream code can rely on a real null.
   return {
     ...parsed,
-    pergunta_esclarecimento: parsed.pergunta_esclarecimento || null,
+    categoria: nullIfEmpty(parsed.categoria),
+    subcategoria: nullIfEmpty(parsed.subcategoria),
+    conta: nullIfEmpty(parsed.conta),
+    pergunta_esclarecimento: nullIfEmpty(parsed.pergunta_esclarecimento),
   };
+}
+
+function nullIfEmpty(value: string | null): string | null {
+  if (!value) return null;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "" || normalized === "null" || normalized === "none" || normalized === "nenhuma") return null;
+  return value;
 }

@@ -22,6 +22,16 @@ enum TransactionType {
   INCOME
   EXPENSE
   TRANSFER
+  ADJUSTMENT
+}
+
+enum AccountType {
+  CHECKING
+  SAVINGS
+  DIGITAL
+  CASH
+  CREDIT_CARD
+  INVESTMENT
 }
 
 enum TransactionStatus {
@@ -67,6 +77,17 @@ model Category {
   @@unique([name, parentId])
 }
 
+model Account {
+  id        String      @id @default(uuid())
+  name      String
+  bank      String?
+  type      AccountType @default(CHECKING)
+  isDefault Boolean     @default(false)
+  createdAt DateTime    @default(now())
+
+  transactions Transaction[]
+}
+
 model Transaction {
   id              String             @id @default(uuid())
   userId          String
@@ -78,6 +99,8 @@ model Transaction {
   date            DateTime
   categoryId      String?
   category        Category?          @relation(fields: [categoryId], references: [id])
+  accountId       String?
+  account         Account?           @relation(fields: [accountId], references: [id])
 
   paymentMethod   String?
   isRecurring     Boolean            @default(false)

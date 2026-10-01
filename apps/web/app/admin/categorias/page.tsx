@@ -38,45 +38,50 @@ export default async function CategoriesAdminPage() {
   const categories = await getCategories();
 
   return (
-    <main style={{ padding: 32, maxWidth: 800, margin: "0 auto" }}>
-      <h1>Categorias</h1>
+    <main style={{ maxWidth: 800, margin: "0 auto", padding: "40px 24px 64px" }}>
+      <p className="eyebrow">Classificação</p>
+      <h1 style={{ fontSize: 22, marginTop: 4 }}>Categorias</h1>
 
-      {categories.map((cat) => (
-        <div key={cat.id} style={{ marginTop: 20 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <strong>{cat.name}</strong>
-            <span style={{ fontSize: 12, color: "#999" }}>{cat.type === "EXPENSE" ? "Despesa" : "Receita"}</span>
-            <form action={deleteCategory}>
-              <input type="hidden" name="id" value={cat.id} />
-              <button type="submit" style={linkButtonStyle}>
-                remover
-              </button>
-            </form>
-          </div>
-          <ul style={{ marginTop: 6 }}>
+      <div style={{ marginTop: 28 }}>
+        {categories.map((cat) => (
+          <div key={cat.id} style={{ marginTop: 20 }}>
+            <div className="ledger-row" style={{ borderBottom: "1px solid var(--ink)" }}>
+              <strong style={{ fontSize: 14 }}>{cat.name}</strong>
+              <span className="eyebrow">{cat.type === "EXPENSE" ? "despesa" : "receita"}</span>
+              <span className="ledger-fill" />
+              <form action={deleteCategory}>
+                <input type="hidden" name="id" value={cat.id} />
+                <button type="submit" className="btn-danger-ghost">
+                  remover
+                </button>
+              </form>
+            </div>
             {cat.children.map((child) => (
-              <li key={child.id} style={{ fontSize: 14, color: "#ccc", display: "flex", alignItems: "center", gap: 8 }}>
-                {child.name}
+              <div className="ledger-row" key={child.id} style={{ paddingLeft: 16 }}>
+                <span className="ledger-label" style={{ color: "var(--muted)" }}>
+                  {child.name}
+                </span>
+                <span className="ledger-fill" />
                 <form action={deleteCategory}>
                   <input type="hidden" name="id" value={child.id} />
-                  <button type="submit" style={linkButtonStyle}>
+                  <button type="submit" className="btn-danger-ghost">
                     remover
                   </button>
                 </form>
-              </li>
+              </div>
             ))}
-          </ul>
-        </div>
-      ))}
+          </div>
+        ))}
+      </div>
 
-      <h2 style={{ marginTop: 40, fontSize: 16 }}>Nova categoria</h2>
-      <form action={createCategory} style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12 }}>
-        <input name="name" placeholder="Nome" required style={inputStyle} />
-        <select name="type" defaultValue="EXPENSE" style={inputStyle}>
+      <h2 style={{ fontSize: 15, marginTop: 40 }}>Nova categoria</h2>
+      <form action={createCategory} style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+        <input name="name" placeholder="Nome" required className="field" />
+        <select name="type" defaultValue="EXPENSE" className="field">
           <option value="EXPENSE">Despesa</option>
           <option value="INCOME">Receita</option>
         </select>
-        <select name="parentId" defaultValue="" style={inputStyle}>
+        <select name="parentId" defaultValue="" className="field">
           <option value="">Categoria principal (sem pai)</option>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
@@ -84,38 +89,10 @@ export default async function CategoriesAdminPage() {
             </option>
           ))}
         </select>
-        <button type="submit" style={buttonStyle}>
+        <button type="submit" className="btn btn-primary">
           Criar
         </button>
       </form>
     </main>
   );
 }
-
-const inputStyle: React.CSSProperties = {
-  background: "#1a1d24",
-  border: "1px solid #2a2d34",
-  borderRadius: 8,
-  padding: "8px 10px",
-  color: "#e8e8e8",
-  fontSize: 14,
-};
-
-const buttonStyle: React.CSSProperties = {
-  background: "#3b82f6",
-  color: "white",
-  border: "none",
-  borderRadius: 8,
-  padding: "0 16px",
-  fontSize: 14,
-  cursor: "pointer",
-};
-
-const linkButtonStyle: React.CSSProperties = {
-  background: "none",
-  border: "none",
-  color: "#ef4444",
-  cursor: "pointer",
-  fontSize: 12,
-  padding: 0,
-};

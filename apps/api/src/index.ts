@@ -5,6 +5,7 @@ import { dashboardRouter } from "./routes/dashboard";
 import { transactionsRouter } from "./routes/transactions";
 import { categoriesRouter } from "./routes/categories";
 import { usersRouter } from "./routes/users";
+import { accountsRouter } from "./routes/accounts";
 import { authRouter } from "./routes/auth";
 import { requireAuth } from "./auth/middleware";
 
@@ -23,6 +24,7 @@ app.use("/api/dashboard", requireAuth, dashboardRouter);
 app.use("/api/transactions", requireAuth, transactionsRouter);
 app.use("/api/categories", requireAuth, categoriesRouter);
 app.use("/api/users", requireAuth, usersRouter);
+app.use("/api/accounts", requireAuth, accountsRouter);
 
 const port = process.env.PORT ?? 3001;
 app.listen(port, () => console.log(`API listening on :${port}`));

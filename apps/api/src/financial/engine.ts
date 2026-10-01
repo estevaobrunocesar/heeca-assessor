@@ -3,6 +3,7 @@ import type { Extraction } from "../ai/schema";
 import { resolveDate } from "./resolveDate";
 import { resolveCategory } from "./categories";
 import { shouldAutoConfirm } from "./confidence";
+import { findAccountByMention, getDefaultAccount } from "./accounts";
 import type { TransactionOrigin } from "@prisma/client";
 
 const TIPO_MAP = {
@@ -12,7 +13,7 @@ const TIPO_MAP = {
 } as const;
 
 export type RegisterResult =
-  | { kind: "registered"; transactionId: string }
+  | { kind: "registered"; transactionId: string; accountName: string | null }
   | { kind: "needs_clarification"; question: string };
 
 export async function registerFromExtraction(params: {
@@ -33,6 +34,14 @@ export async function registerFromExtraction(params: {
     };
   }
 
+  let account = extraction.conta ? await findAccountByMention(extraction.conta) : await getDefaultAccount();
+  if (extraction.conta && !account) {
+    return {
+      kind: "needs_clarification",
+      question: `Não encontrei nenhuma conta cadastrada parecida com "${extraction.conta}". Quer que eu use a conta padrão, ou cadastra essa conta primeiro?`,
+    };
+  }
+
   const type = TIPO_MAP[extraction.tipo as keyof typeof TIPO_MAP];
   const category = await resolveCategory(extraction.categoria, type);
   const date = resolveDate(extraction.data_relativa, receivedAt);
@@ -45,6 +54,7 @@ export async function registerFromExtraction(params: {
       description: extraction.descricao,
       date,
       categoryId: category?.id,
+      accountId: account?.id,
       isRecurring: extraction.recorrente,
       isInstallment: extraction.parcelado,
       installmentTotal: extraction.numero_parcelas ?? undefined,
@@ -54,7 +64,7 @@ export async function registerFromExtraction(params: {
     },
   });
 
-  return { kind: "registered", transactionId: transaction.id };
+  return { kind: "registered", transactionId: transaction.id, accountName: account?.name ?? null };
 }
 
 export async function getLastTransaction(userId: string) {
