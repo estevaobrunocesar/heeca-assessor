@@ -15,8 +15,8 @@ export async function getAccountBalance(accountId: string) {
   }, 0);
 }
 
-export async function getDefaultAccount() {
-  return prisma.account.findFirst({ where: { isDefault: true } });
+export async function getDefaultAccount(workspaceId: string) {
+  return prisma.account.findFirst({ where: { workspaceId, isDefault: true } });
 }
 
 function normalize(text: string) {
@@ -28,15 +28,16 @@ function normalize(text: string) {
 }
 
 /**
- * Matches a free-text account mention against registered accounts by
- * name/bank, accent- and case-insensitive. Checked both ways — the mention
- * is often a full phrase ("cartão do Itaú") that *contains* the bank name,
- * while a short mention ("Itaú") is instead contained *by* the bank name —
- * so neither direction alone catches both cases. Ambiguous or unmatched
- * mentions are the caller's responsibility (e.g. ask instead of guessing).
+ * Matches a free-text account mention against this workspace's registered
+ * accounts by name/bank, accent- and case-insensitive. Checked both ways —
+ * the mention is often a full phrase ("cartão do Itaú") that *contains* the
+ * bank name, while a short mention ("Itaú") is instead contained *by* the
+ * bank name — so neither direction alone catches both cases. Ambiguous or
+ * unmatched mentions are the caller's responsibility (e.g. ask instead of
+ * guessing).
  */
-export async function findAccountByMention(mention: string) {
-  const accounts = await prisma.account.findMany();
+export async function findAccountByMention(mention: string, workspaceId: string) {
+  const accounts = await prisma.account.findMany({ where: { workspaceId } });
   const needle = normalize(mention);
 
   return accounts.find((a) => {
@@ -50,9 +51,9 @@ export async function findAccountByMention(mention: string) {
   });
 }
 
-export async function setDefaultAccount(accountId: string) {
+export async function setDefaultAccount(accountId: string, workspaceId: string) {
   await prisma.$transaction([
-    prisma.account.updateMany({ where: { isDefault: true }, data: { isDefault: false } }),
+    prisma.account.updateMany({ where: { workspaceId, isDefault: true }, data: { isDefault: false } }),
     prisma.account.update({ where: { id: accountId }, data: { isDefault: true } }),
   ]);
 }

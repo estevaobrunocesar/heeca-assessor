@@ -9,6 +9,11 @@ type User = {
   status: "ACTIVE" | "INACTIVE";
 };
 
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/);
+  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase();
+}
+
 async function getUsers(): Promise<User[]> {
   const res = await apiFetch("/api/users");
   if (!res.ok) return [];
@@ -44,58 +49,85 @@ export default async function UsersAdminPage() {
   const users = await getUsers();
 
   return (
-    <main style={{ maxWidth: 800, margin: "0 auto", padding: "40px 24px 64px" }}>
-      <p className="eyebrow">Acesso</p>
-      <h1 style={{ fontSize: 22, marginTop: 4 }}>Usuários</h1>
+    <main style={{ padding: "28px 28px 48px" }}>
+      <div>
+        <h1 style={{ fontSize: 24 }}>Usuários</h1>
+        <p style={{ color: "var(--muted)", fontSize: 14, marginTop: 4 }}>Gerencie os usuários do sistema</p>
+      </div>
 
-      <table style={{ marginTop: 28 }}>
-        <thead>
-          <tr>
-            <th>Nome</th>
-            <th>WhatsApp</th>
-            <th>Perfil</th>
-            <th>Status</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {users.map((u) => (
-            <tr key={u.id}>
-              <td>{u.name}</td>
-              <td className="mono">{u.whatsappPhone}</td>
-              <td>{u.role === "ADMIN" ? "Administrador" : "Usuário"}</td>
-              <td>
-                <span className={u.status === "ACTIVE" ? "" : "eyebrow"} style={{ color: u.status === "ACTIVE" ? "var(--azul)" : "var(--muted)" }}>
-                  {u.status === "ACTIVE" ? "Ativo" : "Inativo"}
-                </span>
-              </td>
-              <td>
-                <form action={toggleStatus}>
-                  <input type="hidden" name="id" value={u.id} />
-                  <input type="hidden" name="status" value={u.status} />
-                  <button type="submit" className="btn-ghost" style={{ border: "none", padding: 0 }}>
-                    {u.status === "ACTIVE" ? "Desativar" : "Ativar"}
-                  </button>
-                </form>
-              </td>
+      <div className="card" style={{ marginTop: 24, overflow: "hidden" }}>
+        <table>
+          <thead>
+            <tr>
+              <th style={{ paddingLeft: 18, paddingTop: 16 }}>Nome</th>
+              <th style={{ paddingTop: 16 }}>WhatsApp</th>
+              <th style={{ paddingTop: 16 }}>Perfil</th>
+              <th style={{ paddingTop: 16 }}>Status</th>
+              <th style={{ paddingTop: 16, paddingRight: 18, textAlign: "right" }}></th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {users.map((u) => (
+              <tr key={u.id}>
+                <td style={{ paddingLeft: 18 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div
+                      style={{
+                        width: 30,
+                        height: 30,
+                        borderRadius: "50%",
+                        background: "var(--primary)",
+                        color: "#fff",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {initials(u.name)}
+                    </div>
+                    <span style={{ fontWeight: 500 }}>{u.name}</span>
+                  </div>
+                </td>
+                <td style={{ color: "var(--muted)" }}>{u.whatsappPhone}</td>
+                <td style={{ color: "var(--muted)" }}>{u.role === "ADMIN" ? "Administrador" : "Usuário"}</td>
+                <td>
+                  <span className={`pill ${u.status === "ACTIVE" ? "pill-green" : "pill-muted"}`}>
+                    {u.status === "ACTIVE" ? "Ativo" : "Inativo"}
+                  </span>
+                </td>
+                <td style={{ paddingRight: 18, textAlign: "right" }}>
+                  <form action={toggleStatus}>
+                    <input type="hidden" name="id" value={u.id} />
+                    <input type="hidden" name="status" value={u.status} />
+                    <button type="submit" className="btn btn-ghost" style={{ fontSize: 12, padding: "6px 12px" }}>
+                      {u.status === "ACTIVE" ? "Desativar" : "Ativar"}
+                    </button>
+                  </form>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
-      <h2 style={{ fontSize: 15, marginTop: 40 }}>Novo usuário</h2>
-      <form action={createUser} style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
-        <input name="name" placeholder="Nome" required className="field" />
-        <input name="whatsappPhone" placeholder="+5511999998888" required className="field mono" />
-        <input name="password" type="password" placeholder="Senha" required className="field" />
-        <select name="role" defaultValue="USER" className="field">
-          <option value="USER">Usuário</option>
-          <option value="ADMIN">Administrador</option>
-        </select>
-        <button type="submit" className="btn btn-primary">
-          Criar
-        </button>
-      </form>
+      <div className="card" style={{ padding: 18, marginTop: 24, maxWidth: 640 }}>
+        <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 12 }}>Novo usuário</div>
+        <form action={createUser} style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <input name="name" placeholder="Nome" required className="field" style={{ flex: "1 1 140px" }} />
+          <input name="whatsappPhone" placeholder="+5511999998888" required className="field" style={{ flex: "1 1 160px" }} />
+          <input name="password" type="password" placeholder="Senha" required className="field" style={{ flex: "1 1 120px" }} />
+          <select name="role" defaultValue="USER" className="field">
+            <option value="USER">Usuário</option>
+            <option value="ADMIN">Administrador</option>
+          </select>
+          <button type="submit" className="btn btn-primary">
+            Criar
+          </button>
+        </form>
+      </div>
     </main>
   );
 }

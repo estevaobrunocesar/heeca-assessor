@@ -1,29 +1,15 @@
-import { IBM_Plex_Sans, IBM_Plex_Serif, IBM_Plex_Mono } from "next/font/google";
-import { Nav } from "./components/Nav";
+import { Inter } from "next/font/google";
+import { Shell } from "./components/Shell";
 import "./globals.css";
 
-const plexSans = IBM_Plex_Sans({
+const inter = Inter({
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-plex-sans",
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-inter",
   display: "swap",
 });
 
-const plexSerif = IBM_Plex_Serif({
-  subsets: ["latin"],
-  weight: ["500", "600"],
-  variable: "--font-plex-serif",
-  display: "swap",
-});
-
-const plexMono = IBM_Plex_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-plex-mono",
-  display: "swap",
-});
-
-export const metadata = { title: "Meu Assessor" };
+export const metadata = { title: "Heeca Assessor" };
 
 const THEME_INIT = `
 (function () {
@@ -37,13 +23,12 @@ const THEME_INIT = `
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR" className={`${plexSans.variable} ${plexSerif.variable} ${plexMono.variable}`}>
+    <html lang="pt-BR" className={inter.variable}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
       </head>
       <body>
-        <Nav />
-        {children}
+        <Shell>{children}</Shell>
       </body>
     </html>
   );

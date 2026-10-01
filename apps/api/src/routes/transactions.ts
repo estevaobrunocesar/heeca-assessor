@@ -7,7 +7,7 @@ export const transactionsRouter = Router();
 transactionsRouter.get("/", async (req, res) => {
   const { from, to, categoryId, userId, type, page = "1", pageSize = "50" } = req.query as Record<string, string>;
 
-  const where: Prisma.TransactionWhereInput = { status: "CONFIRMED" };
+  const where: Prisma.TransactionWhereInput = { workspaceId: req.auth!.workspaceId, status: "CONFIRMED" };
   if (from || to) {
     where.date = {};
     if (from) where.date.gte = new Date(from);

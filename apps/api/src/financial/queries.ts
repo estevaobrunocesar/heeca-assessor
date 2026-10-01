@@ -1,12 +1,13 @@
 import { prisma } from "../db/client";
 import { startOfMonth, endOfMonth, subMonths, format } from "date-fns";
 
-export async function getMonthSummary(referenceDate: Date, userId?: string) {
+export async function getMonthSummary(referenceDate: Date, workspaceId: string, userId?: string) {
   const from = startOfMonth(referenceDate);
   const to = endOfMonth(referenceDate);
 
   const transactions = await prisma.transaction.findMany({
     where: {
+      workspaceId,
       status: "CONFIRMED",
       date: { gte: from, lte: to },
       ...(userId ? { userId } : {}),
@@ -37,11 +38,11 @@ export async function getMonthSummary(referenceDate: Date, userId?: string) {
   };
 }
 
-export async function getMonthlyTrend(months: number, referenceDate: Date) {
+export async function getMonthlyTrend(months: number, referenceDate: Date, workspaceId: string) {
   const from = startOfMonth(subMonths(referenceDate, months - 1));
 
   const transactions = await prisma.transaction.findMany({
-    where: { status: "CONFIRMED", date: { gte: from }, type: { in: ["INCOME", "EXPENSE"] } },
+    where: { workspaceId, status: "CONFIRMED", date: { gte: from }, type: { in: ["INCOME", "EXPENSE"] } },
     select: { date: true, type: true, amount: true },
   });
 

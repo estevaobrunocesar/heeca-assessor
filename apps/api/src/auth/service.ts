@@ -11,6 +11,7 @@ if (!JWT_SECRET) {
 export type AuthTokenPayload = {
   sub: string;
   role: "ADMIN" | "USER";
+  workspaceId: string;
 };
 
 export async function login(whatsappPhone: string, password: string) {
@@ -20,9 +21,11 @@ export async function login(whatsappPhone: string, password: string) {
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) return null;
 
-  const token = jwt.sign({ sub: user.id, role: user.role } satisfies AuthTokenPayload, JWT_SECRET!, {
-    expiresIn: "7d",
-  });
+  const token = jwt.sign(
+    { sub: user.id, role: user.role, workspaceId: user.workspaceId } satisfies AuthTokenPayload,
+    JWT_SECRET!,
+    { expiresIn: "7d" },
+  );
 
   return { token, user: { id: user.id, name: user.name, role: user.role } };
 }

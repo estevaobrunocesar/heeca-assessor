@@ -46,26 +46,46 @@ enum TransactionOrigin {
   DASHBOARD
 }
 
+/// A fully isolated tenant: its own users, accounts, categories and
+/// transactions. Nothing is ever shared or queried across workspaces.
+model Workspace {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  users        User[]
+  accounts     Account[]
+  categories   Category[]
+  transactions Transaction[]
+  aiLogs       AiInteractionLog[]
+}
+
 model User {
-  id           String       @id @default(uuid())
-  name         String
-  shortName    String?
-  whatsappPhone String      @unique
-  email        String?
-  passwordHash String?
-  cpf          String?
-  role         UserRole     @default(USER)
-  status       UserStatus   @default(ACTIVE)
-  currency     String       @default("BRL")
-  timezone     String       @default("America/Sao_Paulo")
-  createdAt    DateTime     @default(now())
+  id            String    @id @default(uuid())
+  workspaceId   String
+  workspace     Workspace @relation(fields: [workspaceId], references: [id])
+
+  name          String
+  shortName     String?
+  whatsappPhone String    @unique
+  email         String?
+  passwordHash  String?
+  cpf           String?
+  role          UserRole     @default(USER)
+  status        UserStatus   @default(ACTIVE)
+  currency      String       @default("BRL")
+  timezone      String       @default("America/Sao_Paulo")
+  createdAt     DateTime     @default(now())
 
   transactions Transaction[]
   aiLogs       AiInteractionLog[]
 }
 
 model Category {
-  id        String     @id @default(uuid())
+  id          String    @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+
   name      String
   type      TransactionType
   parentId  String?
@@ -74,11 +94,14 @@ model Category {
 
   transactions Transaction[]
 
-  @@unique([name, parentId])
+  @@unique([workspaceId, name, parentId])
 }
 
 model Account {
-  id        String      @id @default(uuid())
+  id          String    @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+
   name      String
   bank      String?
   type      AccountType @default(CHECKING)
@@ -90,6 +113,8 @@ model Account {
 
 model Transaction {
   id              String             @id @default(uuid())
+  workspaceId     String
+  workspace       Workspace          @relation(fields: [workspaceId], references: [id])
   userId          String
   user            User               @relation(fields: [userId], references: [id])
 
@@ -121,6 +146,8 @@ model Transaction {
 
 model AiInteractionLog {
   id              String       @id @default(uuid())
+  workspaceId     String?
+  workspace       Workspace?   @relation(fields: [workspaceId], references: [id])
   userId          String?
   user            User?        @relation(fields: [userId], references: [id])
   transactionId   String?

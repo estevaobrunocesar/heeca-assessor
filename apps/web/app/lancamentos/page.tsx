@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { ArrowUpRight, ArrowDownRight, ArrowLeftRight, Scale } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 
 type Transaction = {
@@ -21,12 +23,12 @@ function formatDate(value: string) {
   return new Date(value).toLocaleDateString("pt-BR");
 }
 
-const TYPE_LABEL: Record<Transaction["type"], string> = {
-  INCOME: "Receita",
-  EXPENSE: "Despesa",
-  TRANSFER: "Transferência",
-  ADJUSTMENT: "Ajuste",
-};
+const TYPE_META = {
+  INCOME: { label: "Receita", icon: ArrowUpRight, pill: "pill-green" },
+  EXPENSE: { label: "Despesa", icon: ArrowDownRight, pill: "pill-red" },
+  TRANSFER: { label: "Transferência", icon: ArrowLeftRight, pill: "pill-muted" },
+  ADJUSTMENT: { label: "Ajuste", icon: Scale, pill: "pill-muted" },
+} as const;
 
 async function getTransactions(searchParams: Record<string, string | undefined>) {
   const params = new URLSearchParams();
@@ -45,30 +47,47 @@ async function getCategories() {
   return categories.flatMap((c) => [c, ...c.children]);
 }
 
+const TABS = [
+  { type: "", label: "Todos" },
+  { type: "INCOME", label: "Receitas" },
+  { type: "EXPENSE", label: "Despesas" },
+];
+
 export default async function LancamentosPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const params = await searchParams;
+  const activeType = params.type ?? "";
   const [{ transactions, total }, categories] = await Promise.all([getTransactions(params), getCategories()]);
 
   return (
-    <main style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 24px 64px" }}>
-      <p className="eyebrow">Extrato</p>
-      <h1 style={{ fontSize: 22, marginTop: 4 }}>Lançamentos</h1>
+    <main style={{ padding: "28px 28px 48px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <h1 style={{ fontSize: 24 }}>Lançamentos</h1>
+          <p style={{ color: "var(--muted)", fontSize: 14, marginTop: 4 }}>Gerencie todas as suas receitas e despesas</p>
+        </div>
+      </div>
 
-      <form style={{ display: "flex", gap: 10, flexWrap: "wrap", margin: "24px 0" }}>
-        <input type="date" name="from" defaultValue={params.from} className="field mono" />
-        <input type="date" name="to" defaultValue={params.to} className="field mono" />
-        <select name="type" defaultValue={params.type ?? ""} className="field">
-          <option value="">Todos os tipos</option>
-          <option value="EXPENSE">Despesa</option>
-          <option value="INCOME">Receita</option>
-          <option value="TRANSFER">Transferência</option>
-          <option value="ADJUSTMENT">Ajuste</option>
-        </select>
-        <select name="categoryId" defaultValue={params.categoryId ?? ""} className="field">
+      <div style={{ display: "flex", gap: 6, marginTop: 20 }}>
+        {TABS.map((tab) => (
+          <Link
+            key={tab.label}
+            href={tab.type ? `?type=${tab.type}` : "?"}
+            className={`tab ${activeType === tab.type ? "tab-active" : ""}`}
+          >
+            {tab.label}
+          </Link>
+        ))}
+      </div>
+
+      <form className="card" style={{ display: "flex", gap: 10, flexWrap: "wrap", padding: 16, marginTop: 16 }}>
+        <input type="hidden" name="type" value={activeType} />
+        <input type="date" name="from" defaultValue={params.from} className="field" style={{ flex: "1 1 140px" }} />
+        <input type="date" name="to" defaultValue={params.to} className="field" style={{ flex: "1 1 140px" }} />
+        <select name="categoryId" defaultValue={params.categoryId ?? ""} className="field" style={{ flex: "1 1 180px" }}>
           <option value="">Todas as categorias</option>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
@@ -81,43 +100,62 @@ export default async function LancamentosPage({
         </button>
       </form>
 
-      <p className="eyebrow">{total} lançamento(s)</p>
+      <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 16 }}>{total} lançamento(s)</p>
 
-      <table style={{ marginTop: 12 }}>
-        <thead>
-          <tr>
-            <th>Data</th>
-            <th>Tipo</th>
-            <th>Descrição</th>
-            <th>Categoria</th>
-            <th>Conta</th>
-            <th>Usuário</th>
-            <th style={{ textAlign: "right" }}>Valor</th>
-          </tr>
-        </thead>
-        <tbody>
-          {transactions.map((t) => {
-            const amount = Number(t.amount);
-            const isExpense = t.type === "EXPENSE" || (t.type === "ADJUSTMENT" && amount < 0);
-            return (
-              <tr key={t.id}>
-                <td className="mono">{formatDate(t.date)}</td>
-                <td>{TYPE_LABEL[t.type]}</td>
-                <td>{t.description}</td>
-                <td style={{ color: "var(--muted)" }}>{t.category?.name ?? "—"}</td>
-                <td style={{ color: "var(--muted)" }}>{t.account?.name ?? "—"}</td>
-                <td style={{ color: "var(--muted)" }}>{t.user.name}</td>
-                <td
-                  className="mono"
-                  style={{ textAlign: "right", color: isExpense ? "var(--vermelho)" : "var(--azul)" }}
-                >
-                  {formatBRL(Math.abs(amount))}
+      <div className="card" style={{ marginTop: 10, overflow: "hidden" }}>
+        <table>
+          <thead>
+            <tr>
+              <th style={{ paddingLeft: 18, paddingTop: 16 }}>Data</th>
+              <th style={{ paddingTop: 16 }}>Descrição</th>
+              <th style={{ paddingTop: 16 }}>Categoria</th>
+              <th style={{ paddingTop: 16 }}>Conta</th>
+              <th style={{ paddingTop: 16 }}>Tipo</th>
+              <th style={{ textAlign: "right", paddingRight: 18, paddingTop: 16 }}>Valor</th>
+            </tr>
+          </thead>
+          <tbody>
+            {transactions.map((t) => {
+              const meta = TYPE_META[t.type];
+              const Icon = meta.icon;
+              const amount = Number(t.amount);
+              const isNegative = t.type === "EXPENSE" || (t.type === "ADJUSTMENT" && amount < 0);
+              return (
+                <tr key={t.id}>
+                  <td style={{ paddingLeft: 18, color: "var(--muted)" }}>{formatDate(t.date)}</td>
+                  <td style={{ fontWeight: 500 }}>{t.description}</td>
+                  <td style={{ color: "var(--muted)" }}>{t.category?.name ?? "—"}</td>
+                  <td style={{ color: "var(--muted)" }}>{t.account?.name ?? "—"}</td>
+                  <td>
+                    <span className={`pill ${meta.pill}`}>
+                      <Icon size={12} />
+                      {meta.label}
+                    </span>
+                  </td>
+                  <td
+                    style={{
+                      textAlign: "right",
+                      paddingRight: 18,
+                      fontWeight: 600,
+                      color: isNegative ? "var(--red)" : "var(--green)",
+                    }}
+                  >
+                    {isNegative ? "- " : "+ "}
+                    {formatBRL(Math.abs(amount))}
+                  </td>
+                </tr>
+              );
+            })}
+            {transactions.length === 0 && (
+              <tr>
+                <td colSpan={6} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>
+                  Nenhum lançamento encontrado.
                 </td>
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
+            )}
+          </tbody>
+        </table>
+      </div>
     </main>
   );
 }

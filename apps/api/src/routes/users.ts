@@ -7,8 +7,9 @@ import type { UserRole } from "@prisma/client";
 
 export const usersRouter = Router();
 
-usersRouter.get("/", requireAdmin, async (_req, res) => {
+usersRouter.get("/", requireAdmin, async (req, res) => {
   const users = await prisma.user.findMany({
+    where: { workspaceId: req.auth!.workspaceId },
     orderBy: { createdAt: "asc" },
     select: {
       id: true,
@@ -38,6 +39,7 @@ usersRouter.post("/", requireAdmin, async (req, res) => {
 
   const user = await prisma.user.create({
     data: {
+      workspaceId: req.auth!.workspaceId,
       name,
       whatsappPhone: normalizePhone(whatsappPhone),
       passwordHash: await hashPassword(password),
@@ -57,8 +59,8 @@ usersRouter.patch("/:id", requireAdmin, async (req, res) => {
     password?: string;
   };
 
-  const user = await prisma.user.update({
-    where: { id: req.params.id },
+  const result = await prisma.user.updateMany({
+    where: { id: req.params.id, workspaceId: req.auth!.workspaceId },
     data: {
       name,
       status,
@@ -66,6 +68,8 @@ usersRouter.patch("/:id", requireAdmin, async (req, res) => {
       ...(password ? { passwordHash: await hashPassword(password) } : {}),
     },
   });
+  if (result.count === 0) return res.status(404).json({ error: "User not found" });
 
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: req.params.id } });
   res.json({ id: user.id, name: user.name, status: user.status, role: user.role });
 });

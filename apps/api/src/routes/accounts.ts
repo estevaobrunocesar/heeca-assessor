@@ -6,8 +6,11 @@ import type { AccountType } from "@prisma/client";
 
 export const accountsRouter = Router();
 
-accountsRouter.get("/", async (_req, res) => {
-  const accounts = await prisma.account.findMany({ orderBy: { createdAt: "asc" } });
+accountsRouter.get("/", async (req, res) => {
+  const accounts = await prisma.account.findMany({
+    where: { workspaceId: req.auth!.workspaceId },
+    orderBy: { createdAt: "asc" },
+  });
   const withBalance = await Promise.all(
     accounts.map(async (a) => ({ ...a, balance: await getAccountBalance(a.id) })),
   );
@@ -24,10 +27,10 @@ accountsRouter.post("/", requireAdmin, async (req, res) => {
   if (!name) return res.status(400).json({ error: "name is required" });
 
   const account = await prisma.account.create({
-    data: { name, bank, type: type ?? "CHECKING" },
+    data: { name, bank, type: type ?? "CHECKING", workspaceId: req.auth!.workspaceId },
   });
 
-  if (isDefault) await setDefaultAccount(account.id);
+  if (isDefault) await setDefaultAccount(account.id, req.auth!.workspaceId);
 
   res.status(201).json(account);
 });
@@ -40,13 +43,15 @@ accountsRouter.patch("/:id", requireAdmin, async (req, res) => {
     isDefault?: boolean;
   };
 
-  if (isDefault) await setDefaultAccount(req.params.id);
+  if (isDefault) await setDefaultAccount(req.params.id, req.auth!.workspaceId);
 
-  const account = await prisma.account.update({
-    where: { id: req.params.id },
+  const result = await prisma.account.updateMany({
+    where: { id: req.params.id, workspaceId: req.auth!.workspaceId },
     data: { name, bank, type },
   });
+  if (result.count === 0) return res.status(404).json({ error: "Account not found" });
 
+  const account = await prisma.account.findUniqueOrThrow({ where: { id: req.params.id } });
   res.json(account);
 });
 
@@ -56,16 +61,20 @@ accountsRouter.post("/:id/adjust", requireAdmin, async (req, res) => {
     return res.status(400).json({ error: "amount (non-zero) is required" });
   }
 
-  const account = await prisma.account.findUniqueOrThrow({ where: { id: req.params.id } });
+  const found = await prisma.account.findFirst({
+    where: { id: req.params.id, workspaceId: req.auth!.workspaceId },
+  });
+  if (!found) return res.status(404).json({ error: "Account not found" });
 
   const transaction = await prisma.transaction.create({
     data: {
+      workspaceId: req.auth!.workspaceId,
       userId: req.auth!.sub,
       type: "ADJUSTMENT",
       amount,
       description: note || "Ajuste manual de saldo",
       date: new Date(),
-      accountId: account.id,
+      accountId: found.id,
       origin: "DASHBOARD",
     },
   });

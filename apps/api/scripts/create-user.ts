@@ -4,16 +4,29 @@ import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
-// Usage: npx tsx scripts/create-user.ts "Bruno" "+5511999998888" ADMIN "dashboardPassword"
+// Adds a user into an EXISTING workspace, identified by any other user
+// already in that workspace. For creating a brand-new, isolated tenant use
+// scripts/create-workspace.ts instead.
+// Usage: npx tsx scripts/create-user.ts "Name" "+5511999998888" ADMIN "password" "+5511888887777"
+//   (last arg: WhatsApp phone of an existing user in the target workspace)
 async function main() {
-  const [name, phone, role, password] = process.argv.slice(2);
-  if (!name || !phone) {
-    console.error('Usage: tsx scripts/create-user.ts "Name" "+55..." [ADMIN|USER] [dashboardPassword]');
+  const [name, phone, role, password, existingWorkspaceMemberPhone] = process.argv.slice(2);
+  if (!name || !phone || !existingWorkspaceMemberPhone) {
+    console.error(
+      'Usage: tsx scripts/create-user.ts "Name" "+55..." [ADMIN|USER] [password] "+55<existing-workspace-member-phone>"',
+    );
+    process.exit(1);
+  }
+
+  const existingMember = await prisma.user.findUnique({ where: { whatsappPhone: existingWorkspaceMemberPhone } });
+  if (!existingMember) {
+    console.error(`No existing user found with phone ${existingWorkspaceMemberPhone}`);
     process.exit(1);
   }
 
   const user = await prisma.user.create({
     data: {
+      workspaceId: existingMember.workspaceId,
       name,
       whatsappPhone: phone,
       role: (role as "ADMIN" | "USER") ?? "USER",

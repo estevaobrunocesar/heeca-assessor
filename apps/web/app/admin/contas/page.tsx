@@ -1,4 +1,5 @@
 import { revalidatePath } from "next/cache";
+import { Landmark, Star } from "lucide-react";
 import { apiFetch } from "../../../lib/api";
 
 type Account = {
@@ -19,8 +20,16 @@ const TYPE_LABEL: Record<Account["type"], string> = {
   INVESTMENT: "Investimentos",
 };
 
+const BADGE_COLORS = ["#e11d2e", "#7c3aed", "#2563eb", "#16a34a", "#d97706", "#0891b2"];
+
+function badgeColor(seed: string) {
+  let hash = 0;
+  for (const ch of seed) hash = (hash * 31 + ch.charCodeAt(0)) % 997;
+  return BADGE_COLORS[hash % BADGE_COLORS.length];
+}
+
 function formatBRL(value: number) {
-  return Math.abs(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
 async function getAccounts(): Promise<Account[]> {
@@ -65,76 +74,82 @@ export default async function AccountsAdminPage() {
   const accounts = await getAccounts();
 
   return (
-    <main style={{ maxWidth: 900, margin: "0 auto", padding: "40px 24px 64px" }}>
-      <p className="eyebrow">Contas e saldos</p>
-      <h1 style={{ fontSize: 22, marginTop: 4 }}>Contas</h1>
-      <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 10, maxWidth: 560 }}>
-        O saldo é calculado pelos lançamentos registrados em cada conta. Use o ajuste manual para corrigir
-        divergências com o extrato real do banco.
-      </p>
+    <main style={{ padding: "28px 28px 48px" }}>
+      <div>
+        <h1 style={{ fontSize: 24 }}>Contas bancárias</h1>
+        <p style={{ color: "var(--muted)", fontSize: 14, marginTop: 4 }}>
+          Gerencie suas contas e saldos — calculados pelos lançamentos, com ajuste manual quando precisar
+        </p>
+      </div>
 
-      <div style={{ display: "grid", gap: 1, marginTop: 28 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 16, marginTop: 24 }}>
         {accounts.map((a) => (
-          <div key={a.id} className="panel" style={{ padding: "18px 20px", marginTop: 12 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
-              <div>
-                <strong style={{ fontSize: 15 }}>{a.name}</strong>
-                <span style={{ color: "var(--muted)", fontSize: 13 }}>
-                  {" "}
-                  {a.bank && `· ${a.bank} `}· {TYPE_LABEL[a.type]}
-                </span>
-                {a.isDefault && <span className="badge" style={{ marginLeft: 10 }}>padrão</span>}
-              </div>
+          <div key={a.id} className="card" style={{ padding: 18 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div
-                className={`mono ${a.balance >= 0 ? "sign-up" : "sign-down"}`}
-                style={{ fontSize: 20, fontWeight: 600 }}
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 9,
+                  background: badgeColor(a.bank ?? a.name),
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
               >
-                {formatBRL(a.balance)}
+                <Landmark size={17} color="#fff" />
               </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{a.bank || a.name}</div>
+                <div style={{ fontSize: 12, color: "var(--muted)" }}>{TYPE_LABEL[a.type]}</div>
+              </div>
+              {a.isDefault && <Star size={16} color="var(--amber)" fill="var(--amber)" />}
             </div>
 
-            <hr className="hairline" style={{ margin: "14px 0" }} />
+            <div style={{ fontSize: 22, fontWeight: 700, marginTop: 16 }}>{formatBRL(a.balance)}</div>
 
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--card-border)" }}>
               {!a.isDefault && (
                 <form action={setDefault}>
                   <input type="hidden" name="id" value={a.id} />
-                  <button type="submit" className="btn-ghost" style={{ border: "none", padding: 0 }}>
+                  <button type="submit" className="btn btn-ghost" style={{ width: "100%", justifyContent: "center", fontSize: 12 }}>
                     Tornar padrão
                   </button>
                 </form>
               )}
-              <form action={adjustBalance} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <form action={adjustBalance} style={{ display: "flex", gap: 6 }}>
                 <input type="hidden" name="id" value={a.id} />
-                <input name="amount" type="number" step="0.01" placeholder="Ex: 150 ou -80" required className="field mono" style={{ width: 130 }} />
-                <input name="note" placeholder="Motivo (opcional)" className="field" style={{ width: 180 }} />
-                <button type="submit" className="btn btn-ghost">
-                  Ajustar saldo
+                <input name="amount" type="number" step="0.01" placeholder="+150 ou -80" required className="field" style={{ flex: 1, fontSize: 13 }} />
+                <button type="submit" className="btn btn-ghost" style={{ fontSize: 12, padding: "9px 10px" }}>
+                  Ajustar
                 </button>
               </form>
             </div>
           </div>
         ))}
-      </div>
 
-      <h2 style={{ fontSize: 15, marginTop: 40 }}>Nova conta</h2>
-      <form action={createAccount} style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
-        <input name="name" placeholder="Nome (ex: Conta corrente)" required className="field" />
-        <input name="bank" placeholder="Banco (opcional)" className="field" />
-        <select name="type" defaultValue="CHECKING" className="field">
-          {Object.entries(TYPE_LABEL).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--muted)" }}>
-          <input type="checkbox" name="isDefault" /> Definir como padrão
-        </label>
-        <button type="submit" className="btn btn-primary">
-          Criar
-        </button>
-      </form>
+        <div className="card" style={{ padding: 18, display: "flex", flexDirection: "column" }}>
+          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 12 }}>Nova conta</div>
+          <form action={createAccount} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <input name="name" placeholder="Nome (ex: Conta corrente)" required className="field" />
+            <input name="bank" placeholder="Banco (opcional)" className="field" />
+            <select name="type" defaultValue="CHECKING" className="field">
+              {Object.entries(TYPE_LABEL).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--muted)" }}>
+              <input type="checkbox" name="isDefault" /> Definir como padrão
+            </label>
+            <button type="submit" className="btn btn-primary" style={{ justifyContent: "center", marginTop: 4 }}>
+              Adicionar conta
+            </button>
+          </form>
+        </div>
+      </div>
     </main>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid, Legend } from "recharts";
 
 function formatBRL(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -17,13 +17,14 @@ function formatMonth(yyyyMM: string) {
 /** Reads the current theme's CSS custom properties so charts stay in sync with the toggle. */
 function useThemeColors() {
   const [colors, setColors] = useState({
-    ink: "#12161f",
-    muted: "#5b6472",
-    azul: "#1d4ed8",
-    vermelho: "#b3261e",
-    ouro: "#9c6b1f",
-    linha: "#dadfe8",
-    paperRaised: "#ffffff",
+    ink: "#111113",
+    muted: "#6b7280",
+    green: "#16a34a",
+    red: "#dc2626",
+    blue: "#2563eb",
+    amber: "#d97706",
+    border: "#e5e7eb",
+    card: "#ffffff",
   });
 
   useEffect(() => {
@@ -33,11 +34,12 @@ function useThemeColors() {
       setColors({
         ink: v("--ink"),
         muted: v("--muted"),
-        azul: v("--azul"),
-        vermelho: v("--vermelho"),
-        ouro: v("--ouro"),
-        linha: v("--linha"),
-        paperRaised: v("--paper-raised"),
+        green: v("--green"),
+        red: v("--red"),
+        blue: v("--blue"),
+        amber: v("--amber"),
+        border: v("--card-border"),
+        card: v("--card"),
       });
     };
     read();
@@ -53,58 +55,55 @@ export function TrendChart({ data }: { data: { month: string; income: number; ex
   const c = useThemeColors();
 
   return (
-    <ResponsiveContainer width="100%" height={240}>
-      <LineChart data={data}>
-        <CartesianGrid strokeDasharray="2 4" stroke={c.linha} vertical={false} />
-        <XAxis
-          dataKey="month"
-          tickFormatter={formatMonth}
-          stroke={c.muted}
-          fontSize={11}
-          fontFamily="var(--font-mono)"
-          tickLine={false}
-          axisLine={{ stroke: c.linha }}
-        />
-        <YAxis
-          stroke={c.muted}
-          fontSize={11}
-          fontFamily="var(--font-mono)"
-          tickFormatter={(v) => formatBRL(v)}
-          width={88}
-          tickLine={false}
-          axisLine={false}
-        />
+    <ResponsiveContainer width="100%" height={260}>
+      <BarChart data={data} barGap={4}>
+        <CartesianGrid strokeDasharray="2 4" stroke={c.border} vertical={false} />
+        <XAxis dataKey="month" tickFormatter={formatMonth} stroke={c.muted} fontSize={11} tickLine={false} axisLine={{ stroke: c.border }} />
+        <YAxis stroke={c.muted} fontSize={11} tickFormatter={(v) => formatBRL(v)} width={78} tickLine={false} axisLine={false} />
         <Tooltip
           formatter={(value) => formatBRL(Number(value))}
           labelFormatter={(label) => formatMonth(String(label))}
-          contentStyle={{ background: c.paperRaised, border: `1px solid ${c.linha}`, borderRadius: 8, fontSize: 13 }}
+          contentStyle={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 8, fontSize: 13 }}
         />
-        <Line type="monotone" dataKey="income" name="Receitas" stroke={c.azul} strokeWidth={2} dot={false} />
-        <Line type="monotone" dataKey="expense" name="Despesas" stroke={c.vermelho} strokeWidth={2} dot={false} />
-      </LineChart>
+        <Legend
+          formatter={(value) => <span style={{ color: c.ink, fontSize: 12 }}>{value}</span>}
+          iconType="circle"
+          iconSize={8}
+        />
+        <Bar dataKey="income" name="Receitas" fill={c.green} radius={[4, 4, 0, 0]} />
+        <Bar dataKey="expense" name="Despesas" fill={c.red} radius={[4, 4, 0, 0]} />
+      </BarChart>
     </ResponsiveContainer>
   );
 }
 
 export function CategoryPieChart({ data }: { data: { name: string; total: number }[] }) {
   const c = useThemeColors();
-  const palette = [c.azul, c.ouro, c.vermelho, c.muted, "#7c9fd9", "#c98f3c", "#d98f87", "#9aa5b4"];
+  const palette = [c.red, c.green, c.blue, c.amber, "#8b5cf6", "#ec4899", "#14b8a6", c.muted];
 
   if (data.length === 0) {
     return <p style={{ color: c.muted, fontSize: 14 }}>Sem despesas este mês.</p>;
   }
 
   return (
-    <ResponsiveContainer width="100%" height={240}>
+    <ResponsiveContainer width="100%" height={260}>
       <PieChart>
-        <Pie data={data} dataKey="total" nameKey="name" innerRadius={58} outerRadius={96} paddingAngle={2} stroke={c.paperRaised} strokeWidth={2}>
+        <Pie data={data} dataKey="total" nameKey="name" innerRadius={62} outerRadius={100} paddingAngle={2} stroke={c.card} strokeWidth={2}>
           {data.map((_, i) => (
             <Cell key={i} fill={palette[i % palette.length]} />
           ))}
         </Pie>
         <Tooltip
           formatter={(value) => formatBRL(Number(value))}
-          contentStyle={{ background: c.paperRaised, border: `1px solid ${c.linha}`, borderRadius: 8, fontSize: 13 }}
+          contentStyle={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 8, fontSize: 13 }}
+        />
+        <Legend
+          layout="vertical"
+          align="right"
+          verticalAlign="middle"
+          formatter={(value) => <span style={{ color: c.ink, fontSize: 12 }}>{value}</span>}
+          iconType="circle"
+          iconSize={8}
         />
       </PieChart>
     </ResponsiveContainer>

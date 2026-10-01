@@ -56,32 +56,32 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
   }
 
   if (DELETE_LAST_RE.test(text)) {
-    const last = await getLastTransaction(user.id);
+    const last = await getLastTransaction(user.id, user.workspaceId);
     if (!last) return reply(res, "Não encontrei nenhum lançamento recente para apagar.");
-    await deleteTransaction(last.id);
+    await deleteTransaction(last.id, user.workspaceId);
     return reply(res, `Removido: ${last.description} — R$ ${Number(last.amount).toFixed(2)}.`);
   }
 
   const fixAmountMatch = text.match(FIX_AMOUNT_RE);
   if (fixAmountMatch) {
-    const last = await getLastTransaction(user.id);
+    const last = await getLastTransaction(user.id, user.workspaceId);
     if (!last) return reply(res, "Não encontrei nenhum lançamento recente para corrigir.");
     const amount = Number(fixAmountMatch[3].replace(".", "").replace(",", "."));
-    await updateTransactionAmount(last.id, amount);
+    await updateTransactionAmount(last.id, user.workspaceId, amount);
     return reply(res, `Valor corrigido para R$ ${amount.toFixed(2)}.`);
   }
 
   const fixCategoryMatch = text.match(FIX_CATEGORY_RE);
   if (fixCategoryMatch) {
-    const last = await getLastTransaction(user.id);
+    const last = await getLastTransaction(user.id, user.workspaceId);
     if (!last) return reply(res, "Não encontrei nenhum lançamento recente para corrigir.");
     const categoryName = fixCategoryMatch[4].trim();
-    await updateTransactionCategory(last.id, categoryName);
+    await updateTransactionCategory(last.id, user.workspaceId, categoryName);
     return reply(res, `Categoria corrigida para ${categoryName}.`);
   }
 
   if (QUERY_MONTH_RE.test(text)) {
-    const summary = await getMonthSummary(new Date(), user.id);
+    const summary = await getMonthSummary(new Date(), user.workspaceId, user.id);
     const topLine = summary.topCategories[0] ? `Maior gasto: ${summary.topCategories[0].name} — R$ ${summary.topCategories[0].total.toFixed(2)}.` : "";
     return reply(
       res,
@@ -93,6 +93,7 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
 
   const result = await registerFromExtraction({
     userId: user.id,
+    workspaceId: user.workspaceId,
     extraction,
     origin: mediaUrl ? "WHATSAPP_AUDIO" : "WHATSAPP_TEXT",
     originalMessage: text,
@@ -101,6 +102,7 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
 
   await prisma.aiInteractionLog.create({
     data: {
+      workspaceId: user.workspaceId,
       userId: user.id,
       transactionId: result.kind === "registered" ? result.transactionId : undefined,
       channel: mediaUrl ? "whatsapp_audio" : "whatsapp_text",
