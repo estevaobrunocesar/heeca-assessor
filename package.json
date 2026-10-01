@@ -1,0 +1,5 @@
+{
+  "name": "meu-assessor",
+  "private": true,
+  "workspaces": ["apps/*"]
+}

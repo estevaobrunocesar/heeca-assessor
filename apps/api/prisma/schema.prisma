@@ -1,0 +1,115 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+  TRANSFER
+}
+
+enum TransactionStatus {
+  CONFIRMED
+  PENDING_REVIEW
+  DELETED
+}
+
+enum TransactionOrigin {
+  WHATSAPP_TEXT
+  WHATSAPP_AUDIO
+  DASHBOARD
+}
+
+model User {
+  id           String       @id @default(uuid())
+  name         String
+  shortName    String?
+  whatsappPhone String      @unique
+  email        String?
+  cpf          String?
+  role         UserRole     @default(USER)
+  status       UserStatus   @default(ACTIVE)
+  currency     String       @default("BRL")
+  timezone     String       @default("America/Sao_Paulo")
+  createdAt    DateTime     @default(now())
+
+  transactions Transaction[]
+  aiLogs       AiInteractionLog[]
+}
+
+model Category {
+  id        String     @id @default(uuid())
+  name      String
+  type      TransactionType
+  parentId  String?
+  parent    Category?  @relation("CategoryToSubcategory", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryToSubcategory")
+
+  transactions Transaction[]
+
+  @@unique([name, parentId])
+}
+
+model Transaction {
+  id              String             @id @default(uuid())
+  userId          String
+  user            User               @relation(fields: [userId], references: [id])
+
+  type            TransactionType
+  amount          Decimal            @db.Decimal(12, 2)
+  description     String
+  date            DateTime
+  categoryId      String?
+  category        Category?          @relation(fields: [categoryId], references: [id])
+
+  paymentMethod   String?
+  isRecurring     Boolean            @default(false)
+  isInstallment   Boolean            @default(false)
+  installmentNo   Int?
+  installmentTotal Int?
+
+  origin          TransactionOrigin
+  originalMessage String?
+  aiConfidence    Float?
+  status          TransactionStatus  @default(CONFIRMED)
+
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  aiLogs          AiInteractionLog[]
+}
+
+model AiInteractionLog {
+  id              String       @id @default(uuid())
+  userId          String?
+  user            User?        @relation(fields: [userId], references: [id])
+  transactionId   String?
+  transaction     Transaction? @relation(fields: [transactionId], references: [id])
+
+  channel         String
+  originalMessage String?
+  audioUrl        String?
+  transcription    String?
+  model           String
+  promptVersion   String?
+  rawResponse     Json?
+  extractedData   Json?
+  confidence      Float?
+
+  createdAt       DateTime     @default(now())
+}
