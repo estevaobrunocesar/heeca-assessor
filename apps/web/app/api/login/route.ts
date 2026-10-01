@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 import { API_URL, SESSION_COOKIE } from "../../../lib/api";
 
 export async function POST(req: Request) {
-  const { whatsappPhone, password } = await req.json();
+  const { email, password } = await req.json();
 
   const apiRes = await fetch(`${API_URL}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ whatsappPhone, password }),
+    body: JSON.stringify({ email, password }),
   });
 
   if (!apiRes.ok) {

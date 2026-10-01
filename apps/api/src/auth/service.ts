@@ -1,7 +1,6 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { prisma } from "../db/client";
-import { normalizePhone } from "../users/service";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -14,8 +13,8 @@ export type AuthTokenPayload = {
   workspaceId: string;
 };
 
-export async function login(whatsappPhone: string, password: string) {
-  const user = await prisma.user.findUnique({ where: { whatsappPhone: normalizePhone(whatsappPhone) } });
+export async function login(email: string, password: string) {
+  const user = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
   if (!user || !user.passwordHash || user.status !== "ACTIVE") return null;
 
   const valid = await bcrypt.compare(password, user.passwordHash);

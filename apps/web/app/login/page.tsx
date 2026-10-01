@@ -22,7 +22,7 @@ const FEATURES = [
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [whatsappPhone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -35,7 +35,7 @@ function LoginForm() {
     const res = await fetch("/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ whatsappPhone, password }),
+      body: JSON.stringify({ email, password }),
     });
 
     setLoading(false);
@@ -113,12 +113,12 @@ function LoginForm() {
 
           <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 28 }}>
             <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <span style={{ fontSize: 13, fontWeight: 500, color: "var(--muted)" }}>WhatsApp</span>
+              <span style={{ fontSize: 13, fontWeight: 500, color: "var(--muted)" }}>E-mail</span>
               <input
-                type="text"
-                value={whatsappPhone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+5511999998888"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="voce@email.com"
                 required
                 className="field"
               />

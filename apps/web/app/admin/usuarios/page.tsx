@@ -5,6 +5,7 @@ type User = {
   id: string;
   name: string;
   whatsappPhone: string;
+  email: string;
   role: "ADMIN" | "USER";
   status: "ACTIVE" | "INACTIVE";
 };
@@ -26,6 +27,7 @@ async function createUser(formData: FormData) {
     method: "POST",
     body: JSON.stringify({
       name: formData.get("name"),
+      email: formData.get("email"),
       whatsappPhone: formData.get("whatsappPhone"),
       password: formData.get("password"),
       role: formData.get("role"),
@@ -60,6 +62,7 @@ export default async function UsersAdminPage() {
           <thead>
             <tr>
               <th style={{ paddingLeft: 18, paddingTop: 16 }}>Nome</th>
+              <th style={{ paddingTop: 16 }}>E-mail</th>
               <th style={{ paddingTop: 16 }}>WhatsApp</th>
               <th style={{ paddingTop: 16 }}>Perfil</th>
               <th style={{ paddingTop: 16 }}>Status</th>
@@ -91,6 +94,7 @@ export default async function UsersAdminPage() {
                     <span style={{ fontWeight: 500 }}>{u.name}</span>
                   </div>
                 </td>
+                <td style={{ color: "var(--muted)" }}>{u.email}</td>
                 <td style={{ color: "var(--muted)" }}>{u.whatsappPhone}</td>
                 <td style={{ color: "var(--muted)" }}>{u.role === "ADMIN" ? "Administrador" : "Usuário"}</td>
                 <td>
@@ -117,6 +121,7 @@ export default async function UsersAdminPage() {
         <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 12 }}>Novo usuário</div>
         <form action={createUser} style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <input name="name" placeholder="Nome" required className="field" style={{ flex: "1 1 140px" }} />
+          <input name="email" type="email" placeholder="E-mail" required className="field" style={{ flex: "1 1 160px" }} />
           <input name="whatsappPhone" placeholder="+5511999998888" required className="field" style={{ flex: "1 1 160px" }} />
           <input name="password" type="password" placeholder="Senha" required className="field" style={{ flex: "1 1 120px" }} />
           <select name="role" defaultValue="USER" className="field">

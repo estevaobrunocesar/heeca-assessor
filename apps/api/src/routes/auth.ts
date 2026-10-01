@@ -6,12 +6,12 @@ import { prisma } from "../db/client";
 export const authRouter = Router();
 
 authRouter.post("/login", async (req, res) => {
-  const { whatsappPhone, password } = req.body as { whatsappPhone?: string; password?: string };
-  if (!whatsappPhone || !password) {
-    return res.status(400).json({ error: "whatsappPhone and password are required" });
+  const { email, password } = req.body as { email?: string; password?: string };
+  if (!email || !password) {
+    return res.status(400).json({ error: "email and password are required" });
   }
 
-  const result = await login(whatsappPhone, password);
+  const result = await login(email, password);
   if (!result) {
     return res.status(401).json({ error: "Invalid credentials" });
   }

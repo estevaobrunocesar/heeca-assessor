@@ -68,7 +68,7 @@ model User {
   name          String
   shortName     String?
   whatsappPhone String    @unique
-  email         String?
+  email         String    @unique
   passwordHash  String?
   cpf           String?
   role          UserRole     @default(USER)

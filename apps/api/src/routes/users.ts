@@ -26,15 +26,15 @@ usersRouter.get("/", requireAdmin, async (req, res) => {
 });
 
 usersRouter.post("/", requireAdmin, async (req, res) => {
-  const { name, whatsappPhone, password, role, email } = req.body as {
+  const { name, whatsappPhone, email, password, role } = req.body as {
     name?: string;
     whatsappPhone?: string;
+    email?: string;
     password?: string;
     role?: UserRole;
-    email?: string;
   };
-  if (!name || !whatsappPhone || !password) {
-    return res.status(400).json({ error: "name, whatsappPhone and password are required" });
+  if (!name || !whatsappPhone || !email || !password) {
+    return res.status(400).json({ error: "name, whatsappPhone, email and password are required" });
   }
 
   const user = await prisma.user.create({
@@ -42,13 +42,13 @@ usersRouter.post("/", requireAdmin, async (req, res) => {
       workspaceId: req.auth!.workspaceId,
       name,
       whatsappPhone: normalizePhone(whatsappPhone),
+      email: email.trim().toLowerCase(),
       passwordHash: await hashPassword(password),
       role: role ?? "USER",
-      email,
     },
   });
 
-  res.status(201).json({ id: user.id, name: user.name, whatsappPhone: user.whatsappPhone, role: user.role });
+  res.status(201).json({ id: user.id, name: user.name, whatsappPhone: user.whatsappPhone, email: user.email, role: user.role });
 });
 
 usersRouter.patch("/:id", requireAdmin, async (req, res) => {

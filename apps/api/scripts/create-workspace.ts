@@ -5,11 +5,13 @@ import { seedDefaultCategories } from "../src/financial/seedCategories";
 
 const prisma = new PrismaClient();
 
-// Usage: npx tsx scripts/create-workspace.ts "Workspace name" "Admin name" "+5511999998888" "password"
+// Usage: npx tsx scripts/create-workspace.ts "Workspace name" "Admin name" "+5511999998888" "admin@email.com" "password"
 async function main() {
-  const [workspaceName, adminName, phone, password] = process.argv.slice(2);
-  if (!workspaceName || !adminName || !phone || !password) {
-    console.error('Usage: tsx scripts/create-workspace.ts "Workspace name" "Admin name" "+55..." "password"');
+  const [workspaceName, adminName, phone, email, password] = process.argv.slice(2);
+  if (!workspaceName || !adminName || !phone || !email || !password) {
+    console.error(
+      'Usage: tsx scripts/create-workspace.ts "Workspace name" "Admin name" "+55..." "admin@email.com" "password"',
+    );
     process.exit(1);
   }
 
@@ -21,6 +23,7 @@ async function main() {
       workspaceId: workspace.id,
       name: adminName,
       whatsappPhone: phone,
+      email: email.trim().toLowerCase(),
       role: "ADMIN",
       passwordHash: await bcrypt.hash(password, 10),
     },
