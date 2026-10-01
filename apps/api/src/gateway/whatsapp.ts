@@ -21,6 +21,15 @@ const FIX_CATEGORY_RE = /(muda|corrige|mude) (a )?categoria (do último|do ultim
 const QUERY_MONTH_RE = /quanto (gastei|recebi)|como est[aá]|sobrou|maior (categoria|gasto)/i;
 
 export async function handleIncomingWhatsapp(req: Request, res: Response) {
+  try {
+    await processIncomingWhatsapp(req, res);
+  } catch (err) {
+    console.error("Error handling WhatsApp webhook:", err);
+    reply(res, "Deu um erro aqui do meu lado processando sua mensagem. Pode tentar de novo em instantes?");
+  }
+}
+
+async function processIncomingWhatsapp(req: Request, res: Response) {
   const from = req.body.From as string;
   const body = (req.body.Body as string | undefined)?.trim() ?? "";
   const mediaUrl = req.body.MediaUrl0 as string | undefined;
