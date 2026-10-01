@@ -1,4 +1,5 @@
-const API_URL = process.env.API_URL ?? "http://localhost:3001";
+import { apiFetch } from "../lib/api";
+import { TrendChart, CategoryPieChart } from "./components/Charts";
 
 type Summary = {
   income: number;
@@ -7,8 +8,15 @@ type Summary = {
   topCategories: { name: string; total: number }[];
 };
 
+type TrendPoint = { month: string; income: number; expense: number; result: number };
+
 async function getSummary(): Promise<Summary> {
-  const res = await fetch(`${API_URL}/api/dashboard/summary`, { cache: "no-store" });
+  const res = await apiFetch("/api/dashboard/summary");
+  return res.json();
+}
+
+async function getTrend(): Promise<TrendPoint[]> {
+  const res = await apiFetch("/api/dashboard/trend?months=6");
   return res.json();
 }
 
@@ -17,7 +25,7 @@ function formatBRL(value: number) {
 }
 
 export default async function DashboardPage() {
-  const summary = await getSummary();
+  const [summary, trend] = await Promise.all([getSummary(), getTrend()]);
 
   const cards = [
     { label: "Saldo do mês", value: summary.result },
@@ -38,7 +46,18 @@ export default async function DashboardPage() {
         ))}
       </div>
 
-      <h2 style={{ marginTop: 40 }}>Maiores categorias de gasto</h2>
+      <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 24, marginTop: 40 }}>
+        <div>
+          <h2 style={{ fontSize: 16 }}>Receita x Despesa (últimos 6 meses)</h2>
+          <TrendChart data={trend} />
+        </div>
+        <div>
+          <h2 style={{ fontSize: 16 }}>Gastos por categoria</h2>
+          <CategoryPieChart data={summary.topCategories} />
+        </div>
+      </div>
+
+      <h2 style={{ marginTop: 40, fontSize: 16 }}>Maiores categorias de gasto</h2>
       <ul>
         {summary.topCategories.map((c) => (
           <li key={c.name}>

@@ -1,5 +1,5 @@
 import { prisma } from "../db/client";
-import { startOfMonth, endOfMonth } from "date-fns";
+import { startOfMonth, endOfMonth, subMonths, format } from "date-fns";
 
 export async function getMonthSummary(referenceDate: Date, userId?: string) {
   const from = startOfMonth(referenceDate);
@@ -35,4 +35,29 @@ export async function getMonthSummary(referenceDate: Date, userId?: string) {
     result: income - expense,
     topCategories,
   };
+}
+
+export async function getMonthlyTrend(months: number, referenceDate: Date) {
+  const from = startOfMonth(subMonths(referenceDate, months - 1));
+
+  const transactions = await prisma.transaction.findMany({
+    where: { status: "CONFIRMED", date: { gte: from }, type: { in: ["INCOME", "EXPENSE"] } },
+    select: { date: true, type: true, amount: true },
+  });
+
+  const byMonth = new Map<string, { income: number; expense: number }>();
+  for (let i = 0; i < months; i++) {
+    const key = format(startOfMonth(subMonths(referenceDate, months - 1 - i)), "yyyy-MM");
+    byMonth.set(key, { income: 0, expense: 0 });
+  }
+
+  for (const t of transactions) {
+    const key = format(startOfMonth(t.date), "yyyy-MM");
+    const bucket = byMonth.get(key);
+    if (!bucket) continue;
+    if (t.type === "INCOME") bucket.income += Number(t.amount);
+    else bucket.expense += Number(t.amount);
+  }
+
+  return [...byMonth.entries()].map(([month, v]) => ({ month, ...v, result: v.income - v.expense }));
 }
