@@ -49,3 +49,38 @@ export async function resolveCategory(
 
   return prisma.category.create({ data: { name: categoria, type, workspaceId } });
 }
+
+/**
+ * Lookup-only counterpart of resolveCategory, for queries: never creates
+ * anything. Returns the ids to filter transactions by — a subcategory alone,
+ * or a top-level category together with all its subcategories — plus
+ * whether the scope is a parent (so a report can break it down by
+ * subcategory). Null when nothing in the workspace matches.
+ */
+export async function findCategoryScope(categoria: string | null, subcategoria: string | null, workspaceId: string) {
+  if (!categoria && !subcategoria) return null;
+
+  const all = await prisma.category.findMany({ where: { workspaceId } });
+  const byId = new Map(all.map((c) => [c.id, c]));
+  const catNeedle = categoria ? normalize(categoria) : null;
+  const subNeedle = subcategoria ? normalize(subcategoria) : null;
+
+  if (subNeedle) {
+    const subs = all.filter((c) => c.parentId && normalize(c.name) === subNeedle);
+    const sub =
+      subs.find((c) => catNeedle && normalize(byId.get(c.parentId!)?.name ?? "") === catNeedle) ?? subs[0];
+    if (sub) return { ids: [sub.id], label: sub.name, isParent: false };
+  }
+
+  // The AI sometimes puts the specific item (e.g. "Combustível") in `categoria`.
+  const needle = catNeedle ?? subNeedle!;
+  const parent = all.find((c) => !c.parentId && normalize(c.name) === needle);
+  if (parent) {
+    const childIds = all.filter((c) => c.parentId === parent.id).map((c) => c.id);
+    return { ids: [parent.id, ...childIds], label: parent.name, isParent: true };
+  }
+  const asSub = all.find((c) => c.parentId && normalize(c.name) === needle);
+  if (asSub) return { ids: [asSub.id], label: asSub.name, isParent: false };
+
+  return null;
+}

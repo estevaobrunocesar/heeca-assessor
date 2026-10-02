@@ -3,7 +3,7 @@ import twilio from "twilio";
 import { findUserByPhone } from "../users/service";
 import { transcribeAudio, extractTransaction } from "../ai/engine";
 import { registerFromExtraction, getLastTransaction, deleteTransaction, updateTransactionAmount, updateTransactionCategory } from "../financial/engine";
-import { getMonthSummary } from "../financial/queries";
+import { answerFinanceQuery, QUERY_GATE_RE } from "./query";
 import { checkBudgetAlert } from "../financial/budgets";
 import { prisma } from "../db/client";
 
@@ -19,7 +19,6 @@ function reply(res: Response, message: string) {
 const DELETE_LAST_RE = /apag(a|ar) o (último|ultimo) lan[cç]amento/i;
 const FIX_AMOUNT_RE = /corrig(e|ir) o (último|ultimo) (lan[cç]amento )?para (?:r\$ ?)?([\d.,]+)/i;
 const FIX_CATEGORY_RE = /(muda|corrige|mude) (a )?categoria (do último|do ultimo|pra|para) (.+)/i;
-const QUERY_MONTH_RE = /quanto (gastei|recebi)|como est[aá]|sobrou|maior (categoria|gasto)/i;
 const CONFIRM_RE = /^(sim|confirmo|confirmar|pode|ok|isso)\b/i;
 const CANCEL_RE = /^(n[aã]o|cancela|cancelar)\b/i;
 const PENDING_CONFIRMATION_TTL_MS = 5 * 60 * 1000;
@@ -118,16 +117,20 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
   if (DELETE_LAST_RE.test(text)) {
     const last = await getLastTransaction(user.id, user.workspaceId);
     if (!last) return sendReply("Não encontrei nenhum lançamento recente para apagar.");
+    // Deleting an installment purchase removes every parcela, so describe the
+    // whole purchase rather than just whichever row happens to be the latest.
+    const installments = last.isInstallment ? last.installmentTotal : null;
     const payload: DeleteTransactionPayload = {
       transactionId: last.id,
-      description: last.description,
-      amount: Number(last.amount),
+      description: installments ? last.description.replace(/\s*\(parcela \d+\/\d+\)$/, "") : last.description,
+      amount: Number(last.amount) * (installments ?? 1),
     };
     await prisma.pendingConfirmation.create({
       data: { userId: user.id, action: "DELETE_TRANSACTION", payload },
     });
+    const installmentNote = installments ? ` (compra parcelada em ${installments}x)` : "";
     return sendReply(
-      `Confirma apagar "${last.description}" — R$ ${payload.amount.toFixed(2)}? Responda SIM para confirmar ou NÃO para cancelar.`,
+      `Confirma apagar "${payload.description}" — R$ ${payload.amount.toFixed(2)}${installmentNote}? Responda SIM para confirmar ou NÃO para cancelar.`,
     );
   }
 
@@ -149,12 +152,9 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
     return sendReply(`Categoria corrigida para ${categoryName}.`);
   }
 
-  if (QUERY_MONTH_RE.test(text)) {
-    const summary = await getMonthSummary(new Date(), user.workspaceId, user.id);
-    const topLine = summary.topCategories[0] ? `Maior gasto: ${summary.topCategories[0].name} — R$ ${summary.topCategories[0].total.toFixed(2)}.` : "";
-    return sendReply(
-      `📊 Este mês:\nReceitas: R$ ${summary.income.toFixed(2)}\nDespesas: R$ ${summary.expense.toFixed(2)}\nResultado: R$ ${summary.result.toFixed(2)}\n${topLine}`,
-    );
+  if (QUERY_GATE_RE.test(text)) {
+    const answer = await answerFinanceQuery(text, user);
+    if (answer) return sendReply(answer);
   }
 
   const extraction = await extractTransaction(text, user.workspaceId);

@@ -27,3 +27,18 @@ export const ExtractionSchema = z.object({
 });
 
 export type Extraction = z.infer<typeof ExtractionSchema>;
+
+export const QuerySchema = z.object({
+  eh_consulta: z
+    .boolean()
+    .describe("true only if the message asks about already-registered spending/income/balance; false for a new entry or any other command"),
+  tipo: z.enum(["DESPESA", "RECEITA", "AMBOS"]),
+  data_inicio: z.string().describe("Inclusive start date, YYYY-MM-DD"),
+  data_fim: z.string().describe("Inclusive end date, YYYY-MM-DD"),
+  categoria: z.string().nullable(),
+  subcategoria: z.string().nullable(),
+  conta: z.string().nullable(),
+  descricao_periodo: z.string().describe("Short human label for the period, e.g. 'setembro de 2026', 'esta semana'"),
+});
+
+export type Query = z.infer<typeof QuerySchema>;

@@ -62,3 +62,60 @@ export async function getMonthlyTrend(months: number, referenceDate: Date, works
 
   return [...byMonth.entries()].map(([month, v]) => ({ month, ...v, result: v.income - v.expense }));
 }
+
+export type PeriodReportParams = {
+  workspaceId: string;
+  userId: string;
+  from: Date;
+  to: Date;
+  type: "DESPESA" | "RECEITA" | "AMBOS";
+  categoryIds?: string[];
+  breakdownBySubcategory?: boolean;
+  accountId?: string;
+};
+
+export async function getPeriodReport(params: PeriodReportParams) {
+  const { workspaceId, userId, from, to, type, categoryIds, breakdownBySubcategory, accountId } = params;
+
+  const transactions = await prisma.transaction.findMany({
+    where: {
+      workspaceId,
+      userId,
+      status: "CONFIRMED",
+      date: { gte: from, lte: to },
+      type: type === "DESPESA" ? "EXPENSE" : type === "RECEITA" ? "INCOME" : { in: ["INCOME", "EXPENSE"] },
+      ...(categoryIds ? { categoryId: { in: categoryIds } } : {}),
+      ...(accountId ? { accountId } : {}),
+    },
+    include: { category: { include: { parent: true } } },
+    orderBy: { date: "desc" },
+  });
+
+  const sum = (t: "INCOME" | "EXPENSE") =>
+    transactions.filter((x) => x.type === t).reduce((acc, x) => acc + Number(x.amount), 0);
+  const expense = sum("EXPENSE");
+  const income = sum("INCOME");
+
+  const groups = new Map<string, number>();
+  for (const t of transactions) {
+    if (t.type !== "EXPENSE") continue;
+    const name = breakdownBySubcategory
+      ? (t.category?.name ?? "Sem categoria")
+      : (t.category?.parent?.name ?? t.category?.name ?? "Sem categoria");
+    groups.set(name, (groups.get(name) ?? 0) + Number(t.amount));
+  }
+  const breakdown = [...groups.entries()].sort((a, b) => b[1] - a[1]).map(([name, total]) => ({ name, total }));
+
+  return {
+    income,
+    expense,
+    count: transactions.length,
+    breakdown,
+    recent: transactions.slice(0, 3).map((t) => ({
+      date: t.date,
+      description: t.description,
+      amount: Number(t.amount),
+      type: t.type,
+    })),
+  };
+}

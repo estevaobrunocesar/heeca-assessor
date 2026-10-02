@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { prisma } from "../db/client";
-import { ExtractionSchema, type Extraction } from "./schema";
+import { ExtractionSchema, QuerySchema, type Extraction, type Query } from "./schema";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -83,6 +83,47 @@ export async function extractTransaction(message: string, workspaceId: string): 
   };
 }
 
+const QUERY_PROMPT = `Voce interpreta perguntas sobre financas pessoais feitas por WhatsApp (portugues do Brasil).
+Decida se a mensagem e uma CONSULTA sobre lancamentos ja registrados (quanto gastou/recebeu, extrato, saldo
+do periodo, gasto com uma categoria ou conta) — eh_consulta true — ou se e outra coisa, como um lancamento
+novo ("gastei 50 no posto") ou um comando — eh_consulta false (nesse caso os demais campos sao ignorados).
+
+Se for consulta:
+- Resolva o periodo para datas reais YYYY-MM-DD (inclusivas) a partir da data de hoje informada abaixo.
+  Sem periodo citado, use o mes atual inteiro. "semana" = segunda a domingo da semana atual; "mes passado" =
+  o mes anterior inteiro; "ultimos N dias" termina hoje; um mes citado sem ano e o do ano atual (ou o mais
+  recente que ja passou, se ainda nao chegou).
+- "tipo": DESPESA para gastos, RECEITA para ganhos, AMBOS para resumo/saldo/resultado geral.
+- Escolha "categoria"/"subcategoria" da lista cadastrada quando a pergunta citar um assunto (ex: "gasolina" ->
+  Transporte > Combustivel). Prefira sempre a categoria mais especifica (ex: pizza -> Alimentacao > Delivery ou Restaurante) e
+  evite "Outros" a menos que nada encaixe. Sem assunto especifico, deixe null.
+- "conta" so se a pessoa citou um banco/cartao/conta; senao null.`;
+
+export async function interpretQuery(message: string, workspaceId: string, today: Date): Promise<Query> {
+  const categoryPrompt = await buildCategoryPrompt(workspaceId);
+  const iso = today.toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+  const weekday = today.toLocaleDateString("pt-BR", { weekday: "long", timeZone: "America/Sao_Paulo" });
+
+  const completion = await openai.beta.chat.completions.parse({
+    model: "gpt-4o-2024-08-06",
+    messages: [
+      { role: "system", content: `${QUERY_PROMPT}\n\nHoje e ${iso} (${weekday}).${categoryPrompt}` },
+      { role: "user", content: message },
+    ],
+    response_format: zodResponseFormat(QuerySchema, "query"),
+  });
+
+  const parsed = completion.choices[0]?.message?.parsed;
+  if (!parsed) throw new Error("AI did not return a parseable query");
+
+  return {
+    ...parsed,
+    categoria: nullIfEmpty(parsed.categoria),
+    subcategoria: nullIfEmpty(parsed.subcategoria),
+    conta: nullIfEmpty(parsed.conta),
+  };
+}
+
 const HAS_LETTER_RE = /\p{L}/u;
 
 // The model occasionally returns a corrupted fragment ("." , ".}", ":", "1")
@@ -93,7 +134,8 @@ const HAS_LETTER_RE = /\p{L}/u;
 // question, so treat it the same as null.
 function nullIfEmpty(value: string | null): string | null {
   if (!value) return null;
-  const normalized = value.trim().toLowerCase();
+  // Strip stray punctuation at the edges too (".null", "null.") before comparing.
+  const normalized = value.trim().toLowerCase().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
   if (normalized === "" || normalized === "null" || normalized === "none" || normalized === "nenhuma") return null;
   if (!HAS_LETTER_RE.test(normalized)) return null;
   return value;
