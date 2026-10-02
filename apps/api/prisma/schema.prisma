@@ -80,10 +80,11 @@ model User {
   timezone      String       @default("America/Sao_Paulo")
   createdAt     DateTime     @default(now())
 
-  transactions   Transaction[]
-  aiLogs         AiInteractionLog[]
-  recurringRules RecurringRule[]
-  passwordResets PasswordResetToken[]
+  transactions        Transaction[]
+  aiLogs              AiInteractionLog[]
+  recurringRules      RecurringRule[]
+  passwordResets      PasswordResetToken[]
+  pendingConfirmation PendingConfirmation?
 }
 
 model PasswordResetToken {
@@ -215,6 +216,21 @@ model WebhookEvent {
   messageSid String   @unique
   reply      String?
   createdAt  DateTime @default(now())
+}
+
+// A destructive WhatsApp command (today: "apaga o último lançamento") is
+// held here instead of executed immediately — the user gets asked to
+// confirm, and the next message either does the action (SIM) or drops it
+// (anything else). One row per user: a new destructive command replaces
+// whatever was pending, since a stale confirmation from a different
+// message would be confusing to act on.
+model PendingConfirmation {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  action    String
+  payload   Json
+  createdAt DateTime @default(now())
 }
 
 model AiInteractionLog {

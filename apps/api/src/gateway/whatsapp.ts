@@ -20,6 +20,11 @@ const DELETE_LAST_RE = /apag(a|ar) o (último|ultimo) lan[cç]amento/i;
 const FIX_AMOUNT_RE = /corrig(e|ir) o (último|ultimo) (lan[cç]amento )?para (?:r\$ ?)?([\d.,]+)/i;
 const FIX_CATEGORY_RE = /(muda|corrige|mude) (a )?categoria (do último|do ultimo|pra|para) (.+)/i;
 const QUERY_MONTH_RE = /quanto (gastei|recebi)|como est[aá]|sobrou|maior (categoria|gasto)/i;
+const CONFIRM_RE = /^(sim|confirmo|confirmar|pode|ok|isso)\b/i;
+const CANCEL_RE = /^(n[aã]o|cancela|cancelar)\b/i;
+const PENDING_CONFIRMATION_TTL_MS = 5 * 60 * 1000;
+
+type DeleteTransactionPayload = { transactionId: string; description: string; amount: number };
 
 export async function handleIncomingWhatsapp(req: Request, res: Response) {
   try {
@@ -88,12 +93,42 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
     return sendReply("Não recebi nenhum texto ou áudio para interpretar.");
   }
 
+  // A destructive command asks for confirmation instead of acting right
+  // away. The confirmation itself only ever applies to whatever is pending
+  // for THIS user — an unrelated "sim"/"não" with nothing pending just
+  // falls through to normal processing below.
+  const pending = await prisma.pendingConfirmation.findUnique({ where: { userId: user.id } });
+  if (pending) {
+    const isFresh = Date.now() - pending.createdAt.getTime() <= PENDING_CONFIRMATION_TTL_MS;
+    await prisma.pendingConfirmation.delete({ where: { userId: user.id } });
+
+    if (isFresh && CONFIRM_RE.test(text)) {
+      const payload = pending.payload as unknown as DeleteTransactionPayload;
+      const result = await deleteTransaction(payload.transactionId, user.workspaceId);
+      const suffix = result.count > 1 ? ` (${result.count} parcelas removidas)` : "";
+      return sendReply(`Removido: ${payload.description} — R$ ${payload.amount.toFixed(2)}.${suffix}`);
+    }
+    if (isFresh && CANCEL_RE.test(text)) {
+      return sendReply("Tudo bem, não apaguei nada.");
+    }
+    // Ambiguous reply or a stale (>5min) confirmation — drop it silently and
+    // keep processing this message as a new, unrelated command.
+  }
+
   if (DELETE_LAST_RE.test(text)) {
     const last = await getLastTransaction(user.id, user.workspaceId);
     if (!last) return sendReply("Não encontrei nenhum lançamento recente para apagar.");
-    const result = await deleteTransaction(last.id, user.workspaceId);
-    const suffix = result.count > 1 ? ` (${result.count} parcelas removidas)` : "";
-    return sendReply(`Removido: ${last.description} — R$ ${Number(last.amount).toFixed(2)}.${suffix}`);
+    const payload: DeleteTransactionPayload = {
+      transactionId: last.id,
+      description: last.description,
+      amount: Number(last.amount),
+    };
+    await prisma.pendingConfirmation.create({
+      data: { userId: user.id, action: "DELETE_TRANSACTION", payload },
+    });
+    return sendReply(
+      `Confirma apagar "${last.description}" — R$ ${payload.amount.toFixed(2)}? Responda SIM para confirmar ou NÃO para cancelar.`,
+    );
   }
 
   const fixAmountMatch = text.match(FIX_AMOUNT_RE);
