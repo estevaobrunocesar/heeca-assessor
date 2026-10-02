@@ -55,10 +55,10 @@ export function BankLogo({ bankName, size = 38 }: { bankName: string | null; siz
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={`https://logo.clearbit.com/${bank.domain}?size=128`}
+        src={`https://www.google.com/s2/favicons?domain=${bank.domain}&sz=128`}
         alt={bank.name}
-        width={size * 0.72}
-        height={size * 0.72}
+        width={size * 0.6}
+        height={size * 0.6}
         style={{ objectFit: "contain" }}
         onError={() => setFailed(true)}
       />
