@@ -6,6 +6,7 @@ import { registerFromExtraction, getLastTransaction, deleteTransaction, updateTr
 import { answerFinanceQuery, QUERY_GATE_RE } from "./query";
 import { answerInvoiceQuery, isInvoiceQuery } from "./invoice";
 import { buildReportReply, isReportRequest } from "./report";
+import { answerRepeated, isRepeatedQuery } from "./repeated";
 import { answerBillList, handleBillCreate, handleBillPayment, isBillListQuery, mightCreateBill, mightPayBill } from "./bills";
 import { checkBudgetAlert } from "../financial/budgets";
 import { prisma } from "../db/client";
@@ -167,6 +168,10 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
     return sendReply(report.message, report.media);
   }
 
+  if (isRepeatedQuery(text)) {
+    return sendReply(await answerRepeated(user));
+  }
+
   if (isInvoiceQuery(text)) {
     return sendReply(await answerInvoiceQuery(text, user));
   }
@@ -245,7 +250,13 @@ O limite do cartão foi atualizado.`);
     alertLine = (await checkBudgetAlert(user.workspaceId, result.categoryId, amountThisMonth)) ?? "";
   }
 
+  let duplicateLine = "";
+  if (result.possibleDuplicate) {
+    const at = result.possibleDuplicate.createdAt.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" });
+    duplicateLine = `\n⚠️ Parece repetido: você já tinha registrado "${result.possibleDuplicate.description}" com esse mesmo valor nesse dia (às ${at}). Se foi duplicado, mande "apaga o último lançamento".`;
+  }
+
   return sendReply(
-    `${emoji} Anotado!\nR$ ${result.amount.toFixed(2)}\nCategoria: ${categoryLine}\nDescrição: ${extraction.descricao}${accountLine}${installmentLine}${alertLine}`,
+    `${emoji} Anotado!\nR$ ${result.amount.toFixed(2)}\nCategoria: ${categoryLine}\nDescrição: ${extraction.descricao}${accountLine}${installmentLine}${alertLine}${duplicateLine}`,
   );
 }

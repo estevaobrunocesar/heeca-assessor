@@ -4,9 +4,11 @@ import type { Extraction } from "../ai/schema";
 import { resolveDate } from "./resolveDate";
 import { resolveCategory, resolveCategoryByName, categoryLabel } from "./categories";
 import { matchKeywordRule, saveKeyword } from "./keywords";
+import { findPossibleDuplicate, repeatKey } from "./repeats";
 import { shouldAutoConfirm } from "./confidence";
 import { findAccountByMention, getDefaultAccount } from "./accounts";
 import { reopenBillsPaidBy } from "./bills";
+import { randomUUID } from "node:crypto";
 import type { TransactionOrigin } from "@prisma/client";
 
 const TIPO_MAP = {
@@ -25,6 +27,7 @@ export type RegisterResult =
       amount: number;
       type: "INCOME" | "EXPENSE" | "TRANSFER" | "ADJUSTMENT";
       installments: { total: number; amountEach: number } | null;
+      possibleDuplicate: { description: string; createdAt: Date } | null;
     }
   | { kind: "needs_clarification"; question: string };
 
@@ -91,6 +94,23 @@ export async function registerFromExtraction(params: {
   const baseAmount = Math.floor((extraction.valor! / installmentCount) * 100) / 100;
   const roundingRemainder = Math.round((extraction.valor! - baseAmount * installmentCount) * 100) / 100;
 
+  // Checked before inserting, so the new entry can't match itself. A
+  // warning only — it never blocks the registration. For an installment
+  // purchase the first installment is what is compared (a double-sent
+  // purchase is the costly kind of duplicate: every parcela twice).
+  const duplicate =
+    storedType === "EXPENSE" || storedType === "INCOME"
+      ? await findPossibleDuplicate({
+          workspaceId,
+          type: storedType,
+          amount: baseAmount,
+          date,
+          key: repeatKey(extraction.estabelecimento, extraction.descricao),
+          installmentTotal: installmentCount > 1 ? installmentCount : null,
+        })
+      : null;
+
+  const installmentGroupId = randomUUID();
   let firstTransactionId: string | null = null;
   for (let i = 0; i < installmentCount; i++) {
     const amount = i === installmentCount - 1 ? baseAmount + roundingRemainder : baseAmount;
@@ -112,6 +132,7 @@ export async function registerFromExtraction(params: {
         isInstallment: installmentCount > 1,
         installmentNo: installmentCount > 1 ? i + 1 : undefined,
         installmentTotal: installmentCount > 1 ? installmentCount : undefined,
+        installmentGroupId: installmentCount > 1 ? installmentGroupId : undefined,
         origin,
         originalMessage,
         aiConfidence: extraction.confianca,
@@ -130,6 +151,9 @@ export async function registerFromExtraction(params: {
     amount: extraction.valor!,
     type: storedType,
     installments: installmentCount > 1 ? { total: installmentCount, amountEach: baseAmount } : null,
+    possibleDuplicate: duplicate
+      ? { description: duplicate.description.replace(/\s*\(parcela \d+\/\d+\)$/i, ""), createdAt: duplicate.createdAt }
+      : null,
   };
 }
 
@@ -140,26 +164,42 @@ export async function getLastTransaction(userId: string, workspaceId: string) {
   });
 }
 
+/**
+ * The rows that make up the same purchase as `tx`: itself, or every
+ * installment of an installment purchase. New purchases share an
+ * installmentGroupId; older rows fall back to matching by original message,
+ * which cannot tell apart two purchases typed with the same words.
+ */
+function purchaseRows(tx: {
+  id: string;
+  workspaceId: string;
+  userId: string;
+  isInstallment: boolean;
+  installmentTotal: number | null;
+  installmentGroupId: string | null;
+  originalMessage: string | null;
+}) {
+  if (tx.installmentGroupId) return { workspaceId: tx.workspaceId, installmentGroupId: tx.installmentGroupId };
+  if (tx.isInstallment && tx.originalMessage) {
+    return {
+      workspaceId: tx.workspaceId,
+      userId: tx.userId,
+      originalMessage: tx.originalMessage,
+      installmentTotal: tx.installmentTotal,
+      isInstallment: true,
+    };
+  }
+  return { id: tx.id, workspaceId: tx.workspaceId };
+}
+
 export async function deleteTransaction(transactionId: string, workspaceId: string) {
   const target = await prisma.transaction.findFirst({ where: { id: transactionId, workspaceId, status: "CONFIRMED" } });
   if (!target) return { count: 0 };
 
-  // An installment purchase is several rows (one per month) with no shared
-  // group id — matched here by the original message, since that's unique
-  // enough per purchase in practice. Deleting "the last lançamento" should
-  // undo the whole purchase, not just whichever installment happened to be
-  // created last.
-  if (target.isInstallment && target.originalMessage) {
-    return prisma.transaction.updateMany({
-      where: {
-        workspaceId,
-        userId: target.userId,
-        originalMessage: target.originalMessage,
-        installmentTotal: target.installmentTotal,
-        isInstallment: true,
-      },
-      data: { status: "DELETED" },
-    });
+  // Deleting "the last lançamento" should undo the whole purchase, not just
+  // whichever installment happened to be created last.
+  if (target.isInstallment) {
+    return prisma.transaction.updateMany({ where: purchaseRows(target), data: { status: "DELETED" } });
   }
 
   const result = await prisma.transaction.updateMany({
@@ -202,11 +242,7 @@ export async function setTransactionCategory(
   if (!category) return { ok: false, reason: "category_not_found" };
   if (category.type !== tx.type) return { ok: false, reason: "type_mismatch" };
 
-  const sameInstallmentPurchase =
-    tx.isInstallment && tx.originalMessage
-      ? { workspaceId, userId: tx.userId, originalMessage: tx.originalMessage, installmentTotal: tx.installmentTotal, isInstallment: true }
-      : { id: tx.id, workspaceId };
-  await prisma.transaction.updateMany({ where: sameInstallmentPurchase, data: { categoryId: category.id } });
+  await prisma.transaction.updateMany({ where: purchaseRows(tx), data: { categoryId: category.id } });
 
   const learnedKeyword = tx.merchant ? await saveKeyword(workspaceId, tx.merchant, category.id, "LEARNED") : null;
   return { ok: true, label: await categoryLabel(category), learnedKeyword };

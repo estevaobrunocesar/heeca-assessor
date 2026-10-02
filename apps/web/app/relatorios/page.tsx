@@ -12,12 +12,22 @@ type ReportData = {
   transactions: unknown[];
 };
 
+type Repeated = {
+  recurring: { label: string; typicalAmount: number; months: number; nextDate: string }[];
+  frequent: { label: string; count: number; total: number }[];
+};
+
 const PRESETS = [
   { preset: "mes", label: "Este mês" },
   { preset: "mes-passado", label: "Mês passado" },
   { preset: "30d", label: "Últimos 30 dias" },
   { preset: "ano", label: "Este ano" },
 ];
+
+// Plain calendar days serialized as ISO timestamps; read in UTC so the day never shifts.
+function formatDay(iso: string) {
+  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "UTC" });
+}
 
 function formatBRL(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -42,6 +52,8 @@ export default async function RelatoriosPage({
 
   const res = await apiFetch(`/api/reports/data${qs ? `?${qs}` : ""}`);
   const data: ReportData | null = res.ok ? await res.json() : null;
+  const repeatedRes = await apiFetch("/api/insights/repeated");
+  const repeated: Repeated = repeatedRes.ok ? await repeatedRes.json() : { recurring: [], frequent: [] };
   const activePreset = custom ? null : (preset ?? "mes");
   const download = (format: "pdf" | "xlsx") => `/api/reports/file?format=${format}${qs ? `&${qs}` : ""}`;
 
@@ -139,6 +151,53 @@ export default async function RelatoriosPage({
                 </tbody>
               </table>
             </div>
+          )}
+
+          {(repeated.recurring.length > 0 || repeated.frequent.length > 0) && (
+            <>
+              <h2 style={{ fontSize: 15, marginTop: 32, color: "var(--muted)" }}>Gastos que se repetem</h2>
+              <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 4 }}>Análise dos últimos 6 meses, independente do período acima.</p>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 14, marginTop: 12 }}>
+                {repeated.recurring.length > 0 && (
+                  <div className="card" style={{ overflow: "hidden" }}>
+                    <div style={{ padding: "14px 18px", fontWeight: 600, fontSize: 14 }}>Recorrentes (todo mês)</div>
+                    <table>
+                      <tbody>
+                        {repeated.recurring.map((r) => (
+                          <tr key={r.label}>
+                            <td style={{ paddingLeft: 18, fontWeight: 500 }}>{r.label}</td>
+                            <td style={{ color: "var(--muted)", fontSize: 12 }}>{r.months} meses · {new Date(r.nextDate) < new Date() ? "esperada" : "próx."} ~{formatDay(r.nextDate)}</td>
+                            <td style={{ textAlign: "right", paddingRight: 18, fontWeight: 600 }}>~{formatBRL(r.typicalAmount)}</td>
+                          </tr>
+                        ))}
+                        <tr>
+                          <td colSpan={2} style={{ paddingLeft: 18, color: "var(--muted)", fontSize: 12 }}>Total mensal estimado</td>
+                          <td style={{ textAlign: "right", paddingRight: 18, fontWeight: 700 }}>
+                            {formatBRL(repeated.recurring.reduce((sum, r) => sum + r.typicalAmount, 0))}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {repeated.frequent.length > 0 && (
+                  <div className="card" style={{ overflow: "hidden" }}>
+                    <div style={{ padding: "14px 18px", fontWeight: 600, fontSize: 14 }}>Frequentes nos últimos 30 dias</div>
+                    <table>
+                      <tbody>
+                        {repeated.frequent.map((f) => (
+                          <tr key={f.label}>
+                            <td style={{ paddingLeft: 18, fontWeight: 500 }}>{f.label}</td>
+                            <td style={{ color: "var(--muted)", fontSize: 12 }}>{f.count}x</td>
+                            <td style={{ textAlign: "right", paddingRight: 18, fontWeight: 600 }}>{formatBRL(f.total)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </>
           )}
 
           {data.transactions.length === 0 && (

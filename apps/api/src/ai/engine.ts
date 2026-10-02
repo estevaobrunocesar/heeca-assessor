@@ -31,7 +31,8 @@ Regras:
   mensagem encaixar em alguma. Se nada da lista encaixar bem, pode usar um nome novo e objetivo.
 - "estabelecimento" e a marca, loja ou assunto que melhor identifica o que foi comprado, nas palavras do usuario
   (ex: "Uber", "pizza", "Mercado Livre", "academia"). Nunca uma palavra generica como "compra" ou "gasto".
-  Null se a mensagem nao nomear nenhum.
+  Null se a mensagem nao nomear nenhum. O estabelecimento e OPCIONAL: NUNCA pergunte por ele nem deixe de
+  registrar um lancamento porque ele nao foi informado.
 - Se o usuario mencionar um banco, cartao ou conta especifica (ex: "no cartao Nubank", "da conta do Itau"),
   preencha "conta" com esse nome tal como dito. Se nao mencionar nenhuma conta, deixe "conta" como null —
   NAO assuma uma conta padrao, isso e resolvido fora da IA.
@@ -92,7 +93,12 @@ export async function extractTransaction(message: string, workspaceId: string): 
     subcategoria: nullIfEmpty(parsed.subcategoria),
     estabelecimento: nullIfEmpty(parsed.estabelecimento),
     conta: nullIfEmpty(parsed.conta),
-    pergunta_esclarecimento: nullIfEmpty(parsed.pergunta_esclarecimento),
+    // The merchant is optional. When amount and category are clear, a question
+    // about it is the model being over-careful and must not hold up the entry.
+    pergunta_esclarecimento:
+      parsed.valor !== null && nullIfEmpty(parsed.categoria) !== null && /estabelecimento/i.test(parsed.pergunta_esclarecimento ?? "")
+        ? null
+        : cleanQuestion(parsed.pergunta_esclarecimento),
   };
 }
 
@@ -185,7 +191,7 @@ export async function interpretBill(message: string, workspaceId: string, today:
     categoria: nullIfEmpty(parsed.categoria),
     subcategoria: nullIfEmpty(parsed.subcategoria),
     conta: nullIfEmpty(parsed.conta),
-    pergunta_esclarecimento: nullIfEmpty(parsed.pergunta_esclarecimento),
+    pergunta_esclarecimento: cleanQuestion(parsed.pergunta_esclarecimento),
   };
 }
 
@@ -210,7 +216,7 @@ export async function interpretBillPayment(
   return {
     ...parsed,
     conta_id: parsed.conta_id?.trim() && parsed.conta_id.trim().toLowerCase() !== "null" ? parsed.conta_id.trim() : null,
-    pergunta_esclarecimento: nullIfEmpty(parsed.pergunta_esclarecimento),
+    pergunta_esclarecimento: cleanQuestion(parsed.pergunta_esclarecimento),
   };
 }
 
@@ -222,9 +228,21 @@ const HAS_LETTER_RE = /\p{L}/u;
 // that the SDK's structured-output parsing lets through anyway. Anything
 // without at least one letter in it can't be a real category/account name or
 // question, so treat it the same as null.
+// A clarification question that is sent to the user must read as one: the
+// model has also returned corrupted fragments (".n") here, which have a letter
+// and so survive nullIfEmpty. A real question has more than one word.
+function cleanQuestion(value: string | null): string | null {
+  const question = nullIfEmpty(value);
+  return question && question.trim().split(/\s+/).length >= 2 ? question : null;
+}
+
 function nullIfEmpty(value: string | null): string | null {
   if (!value) return null;
-  // Strip stray punctuation at the edges too (".null", "null.") before comparing.
+  // A real name, category or question starts with a letter or digit. One that
+  // starts with punctuation (".tv", ".}") is a corrupted fragment of the
+  // model's JSON, not something the user said.
+  if (!/^[\p{L}\p{N}]/u.test(value.trim())) return null;
+  // Strip stray punctuation at the edges too ("null.") before comparing.
   const normalized = value.trim().toLowerCase().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
   if (normalized === "" || normalized === "null" || normalized === "none" || normalized === "nenhuma") return null;
   if (!HAS_LETTER_RE.test(normalized)) return null;

@@ -213,6 +213,9 @@ model Transaction {
   isInstallment   Boolean            @default(false)
   installmentNo   Int?
   installmentTotal Int?
+  /// Shared by every row of one installment purchase. Null on rows created
+  /// before this existed, which are grouped by original message instead.
+  installmentGroupId String?
 
   origin          TransactionOrigin
   originalMessage String?
