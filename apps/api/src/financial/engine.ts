@@ -5,6 +5,7 @@ import { resolveDate } from "./resolveDate";
 import { resolveCategory } from "./categories";
 import { shouldAutoConfirm } from "./confidence";
 import { findAccountByMention, getDefaultAccount } from "./accounts";
+import { reopenBillsPaidBy } from "./bills";
 import type { TransactionOrigin } from "@prisma/client";
 
 const TIPO_MAP = {
@@ -151,10 +152,13 @@ export async function deleteTransaction(transactionId: string, workspaceId: stri
     });
   }
 
-  return prisma.transaction.updateMany({
+  const result = await prisma.transaction.updateMany({
     where: { id: transactionId, workspaceId },
     data: { status: "DELETED" },
   });
+  // If this expense was what paid a bill, the bill is unpaid again.
+  await reopenBillsPaidBy(transactionId, workspaceId);
+  return result;
 }
 
 export async function updateTransactionAmount(transactionId: string, workspaceId: string, amount: number) {

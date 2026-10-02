@@ -35,6 +35,12 @@ enum AccountType {
   COFRINHO
 }
 
+enum BillStatus {
+  PENDING
+  PAID
+  CANCELED
+}
+
 enum TransactionStatus {
   CONFIRMED
   PENDING_REVIEW
@@ -61,6 +67,7 @@ model Workspace {
   aiLogs         AiInteractionLog[]
   budgets        Budget[]
   recurringRules RecurringRule[]
+  bills          Bill[]
 }
 
 model User {
@@ -85,6 +92,7 @@ model User {
   recurringRules      RecurringRule[]
   passwordResets      PasswordResetToken[]
   pendingConfirmation PendingConfirmation?
+  bills               Bill[]
 }
 
 model PasswordResetToken {
@@ -111,6 +119,7 @@ model Category {
   transactions   Transaction[]
   budgets        Budget[]
   recurringRules RecurringRule[]
+  bills          Bill[]
 
   @@unique([workspaceId, name, parentId])
 }
@@ -147,6 +156,7 @@ model Account {
 
   transactions   Transaction[]
   recurringRules RecurringRule[]
+  bills          Bill[]
 }
 
 /// A template for a transaction that repeats every month on a fixed day
@@ -205,6 +215,38 @@ model Transaction {
   updatedAt       DateTime           @updatedAt
 
   aiLogs          AiInteractionLog[]
+}
+
+/// A payable not yet paid (rent, utility, boleto). Distinct from a
+/// Transaction: nothing has happened to the money yet. Paying it creates the
+/// real EXPENSE transaction and links it back via paymentTransactionId, so
+/// reversing that transaction can reopen the bill.
+model Bill {
+  id          String     @id @default(uuid())
+  workspaceId String
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id])
+  userId      String
+  user        User       @relation(fields: [userId], references: [id])
+
+  description String
+  amount      Decimal    @db.Decimal(12, 2)
+  dueDate     DateTime
+  status      BillStatus @default(PENDING)
+  categoryId  String?
+  category    Category?  @relation(fields: [categoryId], references: [id])
+  accountId   String?
+  account     Account?   @relation(fields: [accountId], references: [id])
+
+  /// When paid, a monthly bill spawns next month's; sourceBillId links them.
+  repeatMonthly Boolean  @default(false)
+  sourceBillId  String?
+
+  paidAt               DateTime?
+  paymentTransactionId String?
+  originalMessage      String?
+  createdAt            DateTime @default(now())
+
+  @@index([workspaceId, status, dueDate])
 }
 
 // One row per inbound Twilio message (keyed by their MessageSid), written

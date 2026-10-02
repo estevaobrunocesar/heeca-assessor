@@ -1,7 +1,16 @@
 import OpenAI from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { prisma } from "../db/client";
-import { ExtractionSchema, QuerySchema, type Extraction, type Query } from "./schema";
+import {
+  ExtractionSchema,
+  QuerySchema,
+  BillSchema,
+  BillPaymentSchema,
+  type Extraction,
+  type Query,
+  type BillExtraction,
+  type BillPayment,
+} from "./schema";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -121,6 +130,83 @@ export async function interpretQuery(message: string, workspaceId: string, today
     categoria: nullIfEmpty(parsed.categoria),
     subcategoria: nullIfEmpty(parsed.subcategoria),
     conta: nullIfEmpty(parsed.conta),
+  };
+}
+
+const BILL_PROMPT = `Voce interpreta mensagens de WhatsApp (portugues do Brasil) em que a pessoa registra uma CONTA A PAGAR:
+algo que ainda precisa pagar no futuro (aluguel, luz, boleto, condominio, parcela de carro...). Se a mensagem for
+um gasto que ja aconteceu ("gastei", "paguei", "comprei"), uma pergunta ou qualquer outro comando,
+eh_conta_a_pagar e false. Uma conta que "venceu"/"esta vencida"/"esta atrasada" SEM a pessoa dizer que pagou
+continua sendo conta a pagar (em atraso): eh_conta_a_pagar true, com o vencimento no passado.
+
+Se for conta a pagar:
+- "descricao" curta e objetiva (ex: "Aluguel", "Conta de luz").
+- "valor": o valor informado; null se nao disse.
+- "vencimento": data real YYYY-MM-DD calculada a partir de hoje (informado abaixo). "dia 10" sem mes = o proximo dia 10
+  que ainda nao passou (hoje conta); "sexta" = a proxima sexta; "amanha", "semana que vem" etc. resolva normalmente.
+  Null se nao disse nenhuma data.
+- Se faltar valor ou vencimento, preencha "pergunta_esclarecimento" com uma pergunta objetiva.
+- "repete_mensalmente" true se disse que se repete todo mes (mensal, fixa, "todo dia 10").
+- Escolha categoria/subcategoria da lista cadastrada quando encaixar (ex: luz -> Moradia > Energia eletrica); prefira a mais
+  especifica e evite "Outros". "conta" so se citou um banco/cartao/conta para pagar.`;
+
+const BILL_PAYMENT_PROMPT = `Voce identifica, em uma mensagem de WhatsApp (portugues do Brasil), se a pessoa esta dizendo que
+PAGOU uma das contas a pagar pendentes listadas abaixo (ex: "paguei o aluguel", "ja paguei a luz").
+- eh_pagamento_de_conta true somente se a mensagem se refere claramente a uma conta da lista. Um gasto comum
+  ("paguei 50 no mercado") nao e pagamento de conta a menos que bata com uma conta pendente.
+- "conta_id": copie exatamente o id da conta que bate. Se mais de uma puder bater e nao der para saber qual,
+  deixe conta_id null e preencha "pergunta_esclarecimento" perguntando qual.
+- "valor_pago" so se a pessoa disse um valor.`;
+
+export async function interpretBill(message: string, workspaceId: string, today: Date): Promise<BillExtraction> {
+  const categoryPrompt = await buildCategoryPrompt(workspaceId);
+  const iso = today.toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+  const weekday = today.toLocaleDateString("pt-BR", { weekday: "long", timeZone: "America/Sao_Paulo" });
+
+  const completion = await openai.beta.chat.completions.parse({
+    model: "gpt-4o-2024-08-06",
+    messages: [
+      { role: "system", content: `${BILL_PROMPT}\n\nHoje e ${iso} (${weekday}).${categoryPrompt}` },
+      { role: "user", content: message },
+    ],
+    response_format: zodResponseFormat(BillSchema, "bill"),
+  });
+
+  const parsed = completion.choices[0]?.message?.parsed;
+  if (!parsed) throw new Error("AI did not return a parseable bill");
+
+  return {
+    ...parsed,
+    vencimento: /^\d{4}-\d{2}-\d{2}$/.test(parsed.vencimento?.trim() ?? "") ? parsed.vencimento!.trim() : null,
+    categoria: nullIfEmpty(parsed.categoria),
+    subcategoria: nullIfEmpty(parsed.subcategoria),
+    conta: nullIfEmpty(parsed.conta),
+    pergunta_esclarecimento: nullIfEmpty(parsed.pergunta_esclarecimento),
+  };
+}
+
+export async function interpretBillPayment(
+  message: string,
+  pending: { id: string; description: string; amount: number; dueDate: string }[],
+): Promise<BillPayment> {
+  const list = pending.map((b) => `${b.id} | ${b.description} | R$ ${b.amount.toFixed(2)} | vence ${b.dueDate}`).join("\n");
+
+  const completion = await openai.beta.chat.completions.parse({
+    model: "gpt-4o-2024-08-06",
+    messages: [
+      { role: "system", content: `${BILL_PAYMENT_PROMPT}\n\nContas pendentes (id | descricao | valor | vencimento):\n${list}` },
+      { role: "user", content: message },
+    ],
+    response_format: zodResponseFormat(BillPaymentSchema, "bill_payment"),
+  });
+
+  const parsed = completion.choices[0]?.message?.parsed;
+  if (!parsed) throw new Error("AI did not return a parseable bill payment");
+
+  return {
+    ...parsed,
+    conta_id: parsed.conta_id?.trim() && parsed.conta_id.trim().toLowerCase() !== "null" ? parsed.conta_id.trim() : null,
+    pergunta_esclarecimento: nullIfEmpty(parsed.pergunta_esclarecimento),
   };
 }
 

@@ -1,4 +1,5 @@
-import { TrendingUp, TrendingDown, Wallet, PiggyBank, CreditCard } from "lucide-react";
+import Link from "next/link";
+import { TrendingUp, TrendingDown, Wallet, PiggyBank, CreditCard, CalendarClock } from "lucide-react";
 import { apiFetch } from "../lib/api";
 import { TrendChart, CategoryPieChart } from "./components/Charts";
 
@@ -27,12 +28,23 @@ async function getAccounts(): Promise<Account[]> {
   return res.json();
 }
 
+type PendingBill = { amount: number; state: "VENCIDA" | "HOJE" | "A_VENCER" | null };
+
+async function getPendingBills(): Promise<PendingBill[]> {
+  const res = await apiFetch("/api/bills");
+  if (!res.ok) return [];
+  return (await res.json()).pending;
+}
+
 function formatBRL(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
 export default async function DashboardPage() {
-  const [summary, trend, accounts] = await Promise.all([getSummary(), getTrend(), getAccounts()]);
+  const [summary, trend, accounts, bills] = await Promise.all([getSummary(), getTrend(), getAccounts(), getPendingBills()]);
+  const overdueBills = bills.filter((b) => b.state === "VENCIDA");
+  const billsTotal = bills.reduce((sum, b) => sum + b.amount, 0);
+  const overdueTotal = overdueBills.reduce((sum, b) => sum + b.amount, 0);
   const monthLabel = new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 
   // Credit card limits are spending capacity, not cash — mixing them into
@@ -89,6 +101,34 @@ export default async function DashboardPage() {
             </div>
           );
         })}
+
+        {bills.length > 0 && (
+          <Link href="/contas-a-pagar" className="card" style={{ padding: 18, display: "flex", gap: 14, alignItems: "flex-start", color: "inherit", textDecoration: "none" }}>
+            <div
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: 10,
+                background: overdueBills.length > 0 ? "var(--red-soft)" : "var(--blue-soft)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <CalendarClock size={19} color={overdueBills.length > 0 ? "var(--red)" : "var(--blue)"} />
+            </div>
+            <div>
+              <div style={{ fontSize: 13, color: "var(--muted)" }}>Contas a pagar</div>
+              <div style={{ fontSize: 20, fontWeight: 700, marginTop: 3 }}>{formatBRL(billsTotal)}</div>
+              <div style={{ fontSize: 12, color: overdueBills.length > 0 ? "var(--red)" : "var(--muted)", marginTop: 2 }}>
+                {overdueBills.length > 0
+                  ? `${overdueBills.length} vencida(s) · ${formatBRL(overdueTotal)}`
+                  : `${bills.length} pendente(s), nenhuma vencida`}
+              </div>
+            </div>
+          </Link>
+        )}
 
         {cardAccounts.length > 0 && (
           <div className="card" style={{ padding: 18, display: "flex", gap: 14, alignItems: "flex-start" }}>

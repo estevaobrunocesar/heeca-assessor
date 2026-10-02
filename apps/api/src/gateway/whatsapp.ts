@@ -5,6 +5,7 @@ import { transcribeAudio, extractTransaction } from "../ai/engine";
 import { registerFromExtraction, getLastTransaction, deleteTransaction, updateTransactionAmount, updateTransactionCategory } from "../financial/engine";
 import { answerFinanceQuery, QUERY_GATE_RE } from "./query";
 import { answerInvoiceQuery, isInvoiceQuery } from "./invoice";
+import { answerBillList, handleBillCreate, handleBillPayment, isBillListQuery, mightCreateBill, mightPayBill } from "./bills";
 import { checkBudgetAlert } from "../financial/budgets";
 import { prisma } from "../db/client";
 
@@ -155,6 +156,20 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
 
   if (isInvoiceQuery(text)) {
     return sendReply(await answerInvoiceQuery(text, user));
+  }
+
+  if (isBillListQuery(text)) {
+    return sendReply(await answerBillList(user));
+  }
+
+  if (mightPayBill(text)) {
+    const answer = await handleBillPayment(text, user);
+    if (answer) return sendReply(answer);
+  }
+
+  if (mightCreateBill(text)) {
+    const answer = await handleBillCreate(text, user);
+    if (answer) return sendReply(answer);
   }
 
   if (QUERY_GATE_RE.test(text)) {

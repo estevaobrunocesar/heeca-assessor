@@ -8,7 +8,7 @@ export const workspaceRouter = Router();
 workspaceRouter.get("/export", requireAdmin, async (req, res) => {
   const workspaceId = req.auth!.workspaceId;
 
-  const [workspace, users, accounts, categories, transactions, budgets, recurringRules] = await Promise.all([
+  const [workspace, users, accounts, categories, transactions, budgets, recurringRules, bills] = await Promise.all([
     prisma.workspace.findUniqueOrThrow({ where: { id: workspaceId } }),
     prisma.user.findMany({
       where: { workspaceId },
@@ -19,10 +19,11 @@ workspaceRouter.get("/export", requireAdmin, async (req, res) => {
     prisma.transaction.findMany({ where: { workspaceId }, include: { category: true, account: true, user: { select: { name: true } } } }),
     prisma.budget.findMany({ where: { workspaceId } }),
     prisma.recurringRule.findMany({ where: { workspaceId } }),
+    prisma.bill.findMany({ where: { workspaceId } }),
   ]);
 
   res.setHeader("Content-Disposition", `attachment; filename="meu-assessor-export-${workspaceId}.json"`);
-  res.json({ exportedAt: new Date().toISOString(), workspace, users, accounts, categories, transactions, budgets, recurringRules });
+  res.json({ exportedAt: new Date().toISOString(), workspace, users, accounts, categories, transactions, budgets, recurringRules, bills });
 });
 
 /**
@@ -43,10 +44,12 @@ workspaceRouter.delete("/", requireAdmin, async (req, res) => {
     prisma.aiInteractionLog.deleteMany({ where: { workspaceId } }),
     prisma.transaction.deleteMany({ where: { workspaceId } }),
     prisma.recurringRule.deleteMany({ where: { workspaceId } }),
+    prisma.bill.deleteMany({ where: { workspaceId } }),
     prisma.budget.deleteMany({ where: { workspaceId } }),
     prisma.account.deleteMany({ where: { workspaceId } }),
     prisma.category.deleteMany({ where: { workspaceId } }),
     prisma.passwordResetToken.deleteMany({ where: { user: { workspaceId } } }),
+    prisma.pendingConfirmation.deleteMany({ where: { user: { workspaceId } } }),
     prisma.user.deleteMany({ where: { workspaceId } }),
     prisma.workspace.delete({ where: { id: workspaceId } }),
   ]);

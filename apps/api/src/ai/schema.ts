@@ -42,3 +42,30 @@ export const QuerySchema = z.object({
 });
 
 export type Query = z.infer<typeof QuerySchema>;
+
+export const BillSchema = z.object({
+  eh_conta_a_pagar: z
+    .boolean()
+    .describe("true only if the user is registering something they still have to pay in the future; false for a past/just-made expense, a question or any other command"),
+  descricao: z.string(),
+  valor: z.number().nullable(),
+  vencimento: z.string().nullable().describe("Due date as YYYY-MM-DD, or null if the user gave none"),
+  categoria: z.string().nullable(),
+  subcategoria: z.string().nullable(),
+  conta: z.string().nullable(),
+  repete_mensalmente: z.boolean().describe("true when the user says it recurs every month (e.g. 'todo mês', 'mensal', 'fixa')"),
+  pergunta_esclarecimento: z.string().nullable().describe("Question to ask if the amount or due date is missing"),
+});
+
+export type BillExtraction = z.infer<typeof BillSchema>;
+
+export const BillPaymentSchema = z.object({
+  eh_pagamento_de_conta: z
+    .boolean()
+    .describe("true only if the user says they paid one of the pending bills listed; false for any other expense"),
+  conta_id: z.string().nullable().describe("The id of the matching pending bill, copied exactly from the list; null if none or ambiguous"),
+  valor_pago: z.number().nullable().describe("Amount paid if the user stated one that may differ from the bill, otherwise null"),
+  pergunta_esclarecimento: z.string().nullable().describe("If several bills could match, a short question asking which one"),
+});
+
+export type BillPayment = z.infer<typeof BillPaymentSchema>;
