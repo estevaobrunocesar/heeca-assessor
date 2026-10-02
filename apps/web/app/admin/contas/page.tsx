@@ -1,6 +1,8 @@
 import { revalidatePath } from "next/cache";
-import { Landmark, Star } from "lucide-react";
+import { Star } from "lucide-react";
 import { apiFetch } from "../../../lib/api";
+import { BankLogo } from "../../components/BankLogo";
+import { BANKS } from "../../../lib/banks";
 
 type Account = {
   id: string;
@@ -19,14 +21,6 @@ const TYPE_LABEL: Record<Account["type"], string> = {
   CREDIT_CARD: "Cartão de crédito",
   INVESTMENT: "Investimentos",
 };
-
-const BADGE_COLORS = ["#e11d2e", "#7c3aed", "#2563eb", "#16a34a", "#d97706", "#0891b2"];
-
-function badgeColor(seed: string) {
-  let hash = 0;
-  for (const ch of seed) hash = (hash * 31 + ch.charCodeAt(0)) % 997;
-  return BADGE_COLORS[hash % BADGE_COLORS.length];
-}
 
 function formatBRL(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -86,20 +80,7 @@ export default async function AccountsAdminPage() {
         {accounts.map((a) => (
           <div key={a.id} className="card" style={{ padding: 18 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div
-                style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 9,
-                  background: badgeColor(a.bank ?? a.name),
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                }}
-              >
-                <Landmark size={17} color="#fff" />
-              </div>
+              <BankLogo bankName={a.bank} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 600, fontSize: 14 }}>{a.bank || a.name}</div>
                 <div style={{ fontSize: 12, color: "var(--muted)" }}>{TYPE_LABEL[a.type]}</div>
@@ -133,7 +114,16 @@ export default async function AccountsAdminPage() {
           <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 12 }}>Nova conta</div>
           <form action={createAccount} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <input name="name" placeholder="Nome (ex: Conta corrente)" required className="field" />
-            <input name="bank" placeholder="Banco (opcional)" className="field" />
+            <select name="bank" required defaultValue="" className="field">
+              <option value="" disabled>
+                Selecione o banco
+              </option>
+              {BANKS.map((b) => (
+                <option key={b.name} value={b.name}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
             <select name="type" defaultValue="CHECKING" className="field">
               {Object.entries(TYPE_LABEL).map(([value, label]) => (
                 <option key={value} value={value}>
