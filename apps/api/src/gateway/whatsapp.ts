@@ -4,6 +4,7 @@ import { findUserByPhone } from "../users/service";
 import { transcribeAudio, extractTransaction } from "../ai/engine";
 import { registerFromExtraction, getLastTransaction, deleteTransaction, updateTransactionAmount, updateTransactionCategory } from "../financial/engine";
 import { getMonthSummary } from "../financial/queries";
+import { checkBudgetAlert } from "../financial/budgets";
 import { prisma } from "../db/client";
 
 // Replies are sent as TwiML in the webhook response, not via the REST
@@ -121,8 +122,14 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
 
   const emoji = extraction.tipo === "RECEITA" ? "💰" : "⛽";
   const accountLine = result.accountName ? `\nConta: ${result.accountName}` : "";
+
+  let alertLine = "";
+  if (result.type === "EXPENSE" && result.categoryId) {
+    alertLine = (await checkBudgetAlert(user.workspaceId, result.categoryId, result.amount)) ?? "";
+  }
+
   return reply(
     res,
-    `${emoji} Anotado!\nR$ ${extraction.valor!.toFixed(2)}\nCategoria: ${extraction.categoria}\nDescrição: ${extraction.descricao}${accountLine}`,
+    `${emoji} Anotado!\nR$ ${extraction.valor!.toFixed(2)}\nCategoria: ${extraction.categoria}\nDescrição: ${extraction.descricao}${accountLine}${alertLine}`,
   );
 }

@@ -13,7 +13,7 @@ const TIPO_MAP = {
 } as const;
 
 export type RegisterResult =
-  | { kind: "registered"; transactionId: string; accountName: string | null }
+  | { kind: "registered"; transactionId: string; accountName: string | null; categoryId: string | null; amount: number; type: "INCOME" | "EXPENSE" | "TRANSFER" }
   | { kind: "needs_clarification"; question: string };
 
 export async function registerFromExtraction(params: {
@@ -68,7 +68,14 @@ export async function registerFromExtraction(params: {
     },
   });
 
-  return { kind: "registered", transactionId: transaction.id, accountName: account?.name ?? null };
+  return {
+    kind: "registered",
+    transactionId: transaction.id,
+    accountName: account?.name ?? null,
+    categoryId: category?.id ?? null,
+    amount: Number(transaction.amount),
+    type,
+  };
 }
 
 export async function getLastTransaction(userId: string, workspaceId: string) {

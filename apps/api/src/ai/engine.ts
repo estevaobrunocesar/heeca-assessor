@@ -59,9 +59,18 @@ export async function extractTransaction(message: string): Promise<Extraction> {
   };
 }
 
+const HAS_LETTER_RE = /\p{L}/u;
+
+// The model occasionally returns a corrupted fragment ("." , ".}", ":", "1")
+// instead of an actual null for nullable string fields, even though the
+// schema declares them nullable — likely a truncated/malformed JSON stream
+// that the SDK's structured-output parsing lets through anyway. Anything
+// without at least one letter in it can't be a real category/account name or
+// question, so treat it the same as null.
 function nullIfEmpty(value: string | null): string | null {
   if (!value) return null;
   const normalized = value.trim().toLowerCase();
   if (normalized === "" || normalized === "null" || normalized === "none" || normalized === "nenhuma") return null;
+  if (!HAS_LETTER_RE.test(normalized)) return null;
   return value;
 }

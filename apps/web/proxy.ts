@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 const SESSION_COOKIE = "session";
-const PUBLIC_PATHS = ["/login"];
+const PUBLIC_PATHS = ["/login", "/esqueci-senha", "/redefinir-senha"];
 
 export default function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -20,5 +20,7 @@ export default function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api/login|api/logout|_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    "/((?!api/login|api/logout|api/forgot-password|api/reset-password|_next/static|_next/image|favicon.ico).*)",
+  ],
 };

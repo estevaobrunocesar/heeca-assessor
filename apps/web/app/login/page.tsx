@@ -125,7 +125,12 @@ function LoginForm() {
             </label>
 
             <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <span style={{ fontSize: 13, fontWeight: 500, color: "var(--muted)" }}>Senha</span>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 13, fontWeight: 500, color: "var(--muted)" }}>Senha</span>
+                <a href="/esqueci-senha" style={{ fontSize: 12, color: "var(--primary)" }}>
+                  Esqueceu a senha?
+                </a>
+              </div>
               <input
                 type="password"
                 value={password}

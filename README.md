@@ -15,7 +15,8 @@ workspaces diferentes (ex: dois clientes distintos) nunca veem dados um do outro
 
 ## Rodando localmente
 
-1. Copie `.env.example` para `.env` e preencha `OPENAI_API_KEY`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `JWT_SECRET`.
+1. Copie `.env.example` para `.env` e preencha `OPENAI_API_KEY`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `JWT_SECRET`,
+   `RESEND_API_KEY` (opcional — sem ela, "esqueci minha senha" responde 503 em vez de enviar e-mail), `WEB_URL`.
 2. Suba o Postgres: `docker compose up -d db`
 3. `cd apps/api && npm install && npx prisma migrate dev && npm run prisma:generate`
 4. Crie um workspace novo com seu usuário admin (isso já semeia as categorias padrão):
@@ -41,10 +42,16 @@ WhatsApp, consulta de saldo mensal, dashboard com login, gráficos, contas
 bancárias (saldo calculado + ajuste manual) e administração de
 usuários/categorias — tudo isolado por workspace.
 
+Fase 2 parcial: orçamentos por categoria com alerta automático no WhatsApp
+(80%/100% do limite), lançamentos recorrentes gerados automaticamente todo
+mês (job diário às 07h), "esqueci minha senha" por e-mail (Resend),
+exportação/exclusão completa dos dados do workspace (LGPD), rate limiting
+no webhook e no login.
+
 Pendente de decisão de produto: política de confiança para auto-confirmar
 um lançamento vs. pedir esclarecimento — ver TODO em
 `apps/api/src/financial/confidence.ts`.
 
-Fases 2 e 3 (parcelamentos, recorrências, orçamentos, alertas, Open
-Finance) ainda não implementadas — telas "Relatórios" e "Planejamento" no
-menu são placeholders.
+Ainda não implementado: parcelamentos, relatórios/BI avançado (tela
+"Relatórios" é placeholder), Open Finance, importação de extratos,
+previsão de fluxo de caixa, MFA.
