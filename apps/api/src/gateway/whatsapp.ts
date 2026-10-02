@@ -156,6 +156,7 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
     if (!last) return sendReply("Não encontrei nenhum lançamento recente para corrigir.");
     const categoryName = fixCategoryMatch[1].trim().replace(/[.!?]+$/, "");
     const fixed = await updateTransactionCategory(last.id, user.workspaceId, categoryName);
+    if (!fixed.ok) return sendReply("Não consegui trocar a categoria desse lançamento.");
     const learned = fixed.learnedKeyword ? `\nVou lembrar: "${fixed.learnedKeyword}" → ${fixed.label}.` : "";
     return sendReply(`Categoria corrigida para ${fixed.label}.${learned}`);
   }

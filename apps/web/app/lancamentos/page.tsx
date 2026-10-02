@@ -3,6 +3,7 @@ import { ArrowUpRight, ArrowDownRight, ArrowLeftRight, Scale } from "lucide-reac
 import { revalidatePath } from "next/cache";
 import { apiFetch } from "../../lib/api";
 import { DeleteTransactionButton } from "../components/DeleteTransactionButton";
+import { CategoryCell, type ChangeCategoryResult } from "../components/CategoryCell";
 
 type Transaction = {
   id: string;
@@ -10,6 +11,7 @@ type Transaction = {
   amount: string;
   description: string;
   date: string;
+  categoryId: string | null;
   category: { name: string } | null;
   user: { name: string };
   account: { name: string } | null;
@@ -50,6 +52,16 @@ async function deleteTransaction(formData: FormData) {
   await apiFetch(`/api/transactions/${formData.get("id")}`, { method: "DELETE" });
   revalidatePath("/lancamentos");
   revalidatePath("/");
+}
+
+async function changeCategory(id: string, categoryId: string): Promise<ChangeCategoryResult> {
+  "use server";
+  const res = await apiFetch(`/api/transactions/${id}`, { method: "PATCH", body: JSON.stringify({ categoryId }) });
+  if (!res.ok) return { ok: false };
+  const { learnedKeyword } = (await res.json()) as { learnedKeyword: string | null };
+  revalidatePath("/lancamentos");
+  revalidatePath("/");
+  return { ok: true, learnedKeyword };
 }
 
 async function getCategories() {
@@ -136,7 +148,19 @@ export default async function LancamentosPage({
                 <tr key={t.id}>
                   <td style={{ paddingLeft: 18, color: "var(--muted)" }}>{formatDate(t.date)}</td>
                   <td style={{ fontWeight: 500 }}>{t.description}</td>
-                  <td style={{ color: "var(--muted)" }}>{t.category?.name ?? "—"}</td>
+                  <td style={{ color: "var(--muted)" }}>
+                    {t.type === "INCOME" || t.type === "EXPENSE" ? (
+                      <CategoryCell
+                        id={t.id}
+                        type={t.type}
+                        categoryId={t.categoryId}
+                        categoryName={t.category?.name ?? null}
+                        action={changeCategory}
+                      />
+                    ) : (
+                      (t.category?.name ?? "—")
+                    )}
+                  </td>
                   <td style={{ color: "var(--muted)" }}>{t.account?.name ?? "—"}</td>
                   <td>
                     <span className={`pill ${meta.pill}`}>

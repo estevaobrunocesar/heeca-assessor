@@ -178,16 +178,44 @@ export async function updateTransactionAmount(transactionId: string, workspaceId
   });
 }
 
+export type SetCategoryResult =
+  | { ok: true; label: string | null; learnedKeyword: string | null }
+  | { ok: false; reason: "not_found" | "unsupported_type" | "category_not_found" | "type_mismatch" };
+
+/**
+ * Moves a transaction to a category. An installment purchase is one purchase
+ * split into rows, so all of its rows move together. The change is also a
+ * lesson: when the transaction has a known merchant, next time that merchant
+ * comes up it lands in the category the user chose, not wherever the AI
+ * guesses (see keywords.ts).
+ */
+export async function setTransactionCategory(
+  transactionId: string,
+  workspaceId: string,
+  categoryId: string,
+): Promise<SetCategoryResult> {
+  const tx = await prisma.transaction.findFirst({ where: { id: transactionId, workspaceId, status: "CONFIRMED" } });
+  if (!tx) return { ok: false, reason: "not_found" };
+  if (tx.type !== "INCOME" && tx.type !== "EXPENSE") return { ok: false, reason: "unsupported_type" };
+
+  const category = await prisma.category.findFirst({ where: { id: categoryId, workspaceId }, include: { parent: true } });
+  if (!category) return { ok: false, reason: "category_not_found" };
+  if (category.type !== tx.type) return { ok: false, reason: "type_mismatch" };
+
+  const sameInstallmentPurchase =
+    tx.isInstallment && tx.originalMessage
+      ? { workspaceId, userId: tx.userId, originalMessage: tx.originalMessage, installmentTotal: tx.installmentTotal, isInstallment: true }
+      : { id: tx.id, workspaceId };
+  await prisma.transaction.updateMany({ where: sameInstallmentPurchase, data: { categoryId: category.id } });
+
+  const learnedKeyword = tx.merchant ? await saveKeyword(workspaceId, tx.merchant, category.id, "LEARNED") : null;
+  return { ok: true, label: await categoryLabel(category), learnedKeyword };
+}
+
+/** WhatsApp flavour: the user names the category in words ("Delivery", "Alimentação > Mercado"). */
 export async function updateTransactionCategory(transactionId: string, workspaceId: string, categoryName: string) {
   const tx = await prisma.transaction.findFirstOrThrow({ where: { id: transactionId, workspaceId } });
+  if (tx.type !== "INCOME" && tx.type !== "EXPENSE") return { ok: false, reason: "unsupported_type" } as const;
   const category = await resolveCategoryByName(categoryName, tx.type, workspaceId);
-  await prisma.transaction.update({
-    where: { id: transactionId },
-    data: { categoryId: category.id },
-  });
-
-  // The correction is a lesson: next time this merchant comes up it lands in
-  // the category the user chose, not wherever the AI guesses.
-  const learnedKeyword = tx.merchant ? await saveKeyword(workspaceId, tx.merchant, category.id, "LEARNED") : null;
-  return { label: await categoryLabel(category), learnedKeyword };
+  return setTransactionCategory(transactionId, workspaceId, category.id);
 }
