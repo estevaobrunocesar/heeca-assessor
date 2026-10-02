@@ -1,10 +1,11 @@
 import OpenAI from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
+import { prisma } from "../db/client";
 import { ExtractionSchema, type Extraction } from "./schema";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const SYSTEM_PROMPT = `Voce e o motor de interpretacao de um assessor financeiro pessoal via WhatsApp.
+const BASE_PROMPT = `Voce e o motor de interpretacao de um assessor financeiro pessoal via WhatsApp.
 Sua unica tarefa e transformar uma mensagem em linguagem natural (em portugues do Brasil) em um
 lancamento financeiro estruturado.
 
@@ -16,11 +17,32 @@ Regras:
   "pergunta_esclarecimento" com uma pergunta objetiva para o usuario.
 - "data_relativa" deve conter a referencia temporal tal como dita (hoje, ontem, sabado passado, etc),
   ou uma data ISO se o usuario disse uma data explicita. A resolucao para data real acontece fora da IA.
-- Categorias sugeridas (despesas): Casa, Alimentacao, Transporte, Saude, Educacao, Lazer, Financeiro.
-- Categorias sugeridas (receitas): Salario, Comissao, Freelance, Vendas, Investimentos, Reembolso, Outros.
+- "categoria" deve ser o nome da categoria principal (ex: "Transporte") e "subcategoria" o item especifico
+  dentro dela (ex: "Uber"), escolhidos a partir da lista de categorias cadastradas abaixo sempre que a
+  mensagem encaixar em alguma. Se nada da lista encaixar bem, pode usar um nome novo e objetivo.
 - Se o usuario mencionar um banco, cartao ou conta especifica (ex: "no cartao Nubank", "da conta do Itau"),
   preencha "conta" com esse nome tal como dito. Se nao mencionar nenhuma conta, deixe "conta" como null —
-  NAO assuma uma conta padrao, isso e resolvido fora da IA.`;
+  NAO assuma uma conta padrao, isso e resolvido fora da IA.
+- Se a compra for parcelada (ex: "parcelei em 5 vezes", "em 3x", "5x de 100"), marque "parcelado" true e
+  preencha "numero_parcelas". "valor" deve SEMPRE ser o total da compra — se o usuario disse o valor da
+  parcela (ex: "5x de 100"), multiplique pelo numero de parcelas para obter o total (500). A divisao em
+  parcelas mensais acontece fora da IA.`;
+
+async function buildCategoryPrompt(workspaceId: string): Promise<string> {
+  const categories = await prisma.category.findMany({
+    where: { workspaceId },
+    include: { children: true },
+    orderBy: { name: "asc" },
+  });
+
+  const expense = categories.filter((c) => c.type === "EXPENSE" && !c.parentId);
+  const income = categories.filter((c) => c.type === "INCOME" && !c.parentId);
+
+  const formatGroup = (group: typeof expense) =>
+    group.map((c) => `${c.name}: ${c.children.map((ch) => ch.name).join(", ")}`).join("\n");
+
+  return `\n\nCategorias cadastradas (despesas):\n${formatGroup(expense)}\n\nCategorias cadastradas (receitas):\n${income.map((c) => c.name).join(", ")}`;
+}
 
 export async function transcribeAudio(audioBuffer: Buffer, filename: string): Promise<string> {
   const file = new File([audioBuffer], filename, { type: "audio/ogg" });
@@ -32,11 +54,13 @@ export async function transcribeAudio(audioBuffer: Buffer, filename: string): Pr
   return result.text;
 }
 
-export async function extractTransaction(message: string): Promise<Extraction> {
+export async function extractTransaction(message: string, workspaceId: string): Promise<Extraction> {
+  const categoryPrompt = await buildCategoryPrompt(workspaceId);
+
   const completion = await openai.beta.chat.completions.parse({
     model: "gpt-4o-2024-08-06",
     messages: [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: BASE_PROMPT + categoryPrompt },
       { role: "user", content: message },
     ],
     response_format: zodResponseFormat(ExtractionSchema, "extraction"),

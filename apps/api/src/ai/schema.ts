@@ -2,7 +2,12 @@ import { z } from "zod";
 
 export const ExtractionSchema = z.object({
   tipo: z.enum(["DESPESA", "RECEITA", "TRANSFERENCIA", "INDEFINIDO"]),
-  valor: z.number().nullable(),
+  valor: z
+    .number()
+    .nullable()
+    .describe(
+      "The TOTAL purchase amount. If the user gave a per-installment amount instead (e.g. '5x de 100'), multiply it out to the total (500), never the per-installment figure.",
+    ),
   categoria: z.string().nullable(),
   subcategoria: z.string().nullable(),
   descricao: z.string(),

@@ -59,8 +59,9 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
   if (DELETE_LAST_RE.test(text)) {
     const last = await getLastTransaction(user.id, user.workspaceId);
     if (!last) return reply(res, "Não encontrei nenhum lançamento recente para apagar.");
-    await deleteTransaction(last.id, user.workspaceId);
-    return reply(res, `Removido: ${last.description} — R$ ${Number(last.amount).toFixed(2)}.`);
+    const result = await deleteTransaction(last.id, user.workspaceId);
+    const suffix = result.count > 1 ? ` (${result.count} parcelas removidas)` : "";
+    return reply(res, `Removido: ${last.description} — R$ ${Number(last.amount).toFixed(2)}.${suffix}`);
   }
 
   const fixAmountMatch = text.match(FIX_AMOUNT_RE);
@@ -90,7 +91,7 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
     );
   }
 
-  const extraction = await extractTransaction(text);
+  const extraction = await extractTransaction(text, user.workspaceId);
 
   const result = await registerFromExtraction({
     userId: user.id,
@@ -120,16 +121,25 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
     return reply(res, result.question);
   }
 
-  const emoji = extraction.tipo === "RECEITA" ? "💰" : "⛽";
+  const emoji = extraction.tipo === "RECEITA" ? "💰" : "💸";
   const accountLine = result.accountName ? `\nConta: ${result.accountName}` : "";
+  const categoryLine = extraction.subcategoria
+    ? `${extraction.categoria} > ${extraction.subcategoria}`
+    : extraction.categoria;
+  const installmentLine = result.installments
+    ? `\nParcelado em ${result.installments.total}x de R$ ${result.installments.amountEach.toFixed(2)}`
+    : "";
 
   let alertLine = "";
   if (result.type === "EXPENSE" && result.categoryId) {
-    alertLine = (await checkBudgetAlert(user.workspaceId, result.categoryId, result.amount)) ?? "";
+    // Only the first installment actually lands in this month's spend —
+    // that's the figure the budget threshold check needs, not the total.
+    const amountThisMonth = result.installments ? result.installments.amountEach : result.amount;
+    alertLine = (await checkBudgetAlert(user.workspaceId, result.categoryId, amountThisMonth)) ?? "";
   }
 
   return reply(
     res,
-    `${emoji} Anotado!\nR$ ${extraction.valor!.toFixed(2)}\nCategoria: ${extraction.categoria}\nDescrição: ${extraction.descricao}${accountLine}${alertLine}`,
+    `${emoji} Anotado!\nR$ ${result.amount.toFixed(2)}\nCategoria: ${categoryLine}\nDescrição: ${extraction.descricao}${accountLine}${installmentLine}${alertLine}`,
   );
 }
