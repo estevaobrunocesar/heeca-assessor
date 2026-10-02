@@ -1,7 +1,13 @@
 import type { Request, Response } from "express";
 import twilio from "twilio";
 import { findUserByPhone } from "../users/service";
-import { transcribeAudio, extractTransaction } from "../ai/engine";
+import { transcribeAudio, extractTransaction, extractFromReceipt, type ReceiptImage } from "../ai/engine";
+import type { Extraction } from "../ai/schema";
+import { addDays, format, subDays } from "date-fns";
+import { resolveDate } from "../financial/resolveDate";
+import { findAccountByMention } from "../financial/accounts";
+import { parseDay } from "../financial/bills";
+import { todayInBrazil } from "../financial/invoices";
 import { registerFromExtraction, getLastTransaction, deleteTransaction, updateTransactionAmount, updateTransactionCategory } from "../financial/engine";
 import { answerFinanceQuery, QUERY_GATE_RE } from "./query";
 import { answerInvoiceQuery, isInvoiceQuery } from "./invoice";
@@ -32,6 +38,21 @@ const CANCEL_RE = /^(n[aã]o|cancela|cancelar)\b/i;
 const PENDING_CONFIRMATION_TTL_MS = 5 * 60 * 1000;
 
 type DeleteTransactionPayload = { transactionId: string; description: string; amount: number };
+
+const RECEIPT_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const MAX_MEDIA_BYTES = 8 * 1024 * 1024;
+
+/** Fetches a Twilio media file (they require the account credentials), or "too_large". */
+async function downloadMedia(url: string): Promise<Buffer | "too_large"> {
+  const response = await fetch(url, {
+    headers: {
+      Authorization: "Basic " + Buffer.from(process.env.TWILIO_ACCOUNT_SID + ":" + process.env.TWILIO_AUTH_TOKEN).toString("base64"),
+    },
+  });
+  if (!response.ok) throw new Error("Could not download media (" + response.status + ")");
+  const buffer = Buffer.from(await response.arrayBuffer());
+  return buffer.length > MAX_MEDIA_BYTES ? "too_large" : buffer;
+}
 
 export async function handleIncomingWhatsapp(req: Request, res: Response) {
   try {
@@ -84,19 +105,113 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
     return sendReply("Esse número não está cadastrado como usuário do assessor financeiro. Peça ao administrador para te cadastrar.");
   }
 
-  let text = body;
-  if (mediaUrl) {
-    const audioResponse = await fetch(mediaUrl, {
-      headers: {
-        Authorization:
-          "Basic " + Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString("base64"),
+  /** Registers an extracted entry (from text, a transcribed audio or a receipt photo) and writes the reply. */
+  async function registerAndReply(
+    extraction: Extraction,
+    originalText: string,
+    source: "text" | "audio" | "photo",
+    extraNote = "",
+  ) {
+    const origin = { text: "WHATSAPP_TEXT", audio: "WHATSAPP_AUDIO", photo: "WHATSAPP_PHOTO" } as const;
+
+    const result = await registerFromExtraction({
+      userId: user!.id,
+      workspaceId: user!.workspaceId,
+      extraction,
+      origin: origin[source],
+      originalMessage: originalText,
+      receivedAt: new Date(),
+    });
+
+    await prisma.aiInteractionLog.create({
+      data: {
+        workspaceId: user!.workspaceId,
+        userId: user!.id,
+        transactionId: result.kind === "registered" ? result.transactionId : undefined,
+        channel: `whatsapp_${source}`,
+        originalMessage: body || undefined,
+        audioUrl: source === "audio" ? mediaUrl : undefined,
+        transcription: source === "audio" ? originalText : undefined,
+        model: "gpt-4o-2024-08-06",
+        extractedData: extraction,
+        confidence: extraction.confianca,
       },
     });
-    const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
-    text = await transcribeAudio(audioBuffer, "audio.ogg");
+
+    if (result.kind === "needs_clarification") {
+      // Only a photo the model itself could not read gets the "send a clearer
+      // one" message; other questions (unknown account...) are passed through.
+      const unreadable =
+        source === "photo" &&
+        !extraction.pergunta_esclarecimento &&
+        (extraction.tipo === "INDEFINIDO" || extraction.valor === null || extraction.valor <= 0);
+      return sendReply(
+        unreadable
+          ? "Não consegui ler esse comprovante. Manda outra foto mais nítida, ou escreve o valor e o local."
+          : result.question,
+      );
+    }
+
+    if (result.type === "ADJUSTMENT") {
+      const accountName = result.accountName ? `\nConta: ${result.accountName}` : "";
+      return sendReply(
+        `💳 Pagamento de fatura registrado!\nR$ ${result.amount.toFixed(2)}${accountName}\nO limite do cartão foi atualizado.`,
+      );
+    }
+
+    const emoji = extraction.tipo === "RECEITA" ? "💰" : "💸";
+    const accountLine = result.accountName ? `\nConta: ${result.accountName}` : "";
+    // The category actually stored, which a learned/known keyword may have
+    // chosen over what the AI named.
+    const categoryLine = result.categoryLabel ?? extraction.categoria;
+    const installmentLine = result.installments
+      ? `\nParcelado em ${result.installments.total}x de R$ ${result.installments.amountEach.toFixed(2)}`
+      : "";
+
+    let alertLine = "";
+    if (result.type === "EXPENSE" && result.categoryId) {
+      // Only the first installment actually lands in this month's spend —
+      // that's the figure the budget threshold check needs, not the total.
+      const amountThisMonth = result.installments ? result.installments.amountEach : result.amount;
+      alertLine = (await checkBudgetAlert(user!.workspaceId, result.categoryId, amountThisMonth)) ?? "";
+    }
+
+    let duplicateLine = "";
+    if (result.possibleDuplicate) {
+      const at = result.possibleDuplicate.createdAt.toLocaleTimeString("pt-BR", {
+        timeZone: "America/Sao_Paulo",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      duplicateLine = `\n⚠️ Parece repetido: você já tinha registrado "${result.possibleDuplicate.description}" com esse mesmo valor nesse dia (às ${at}). Se foi duplicado, mande "apaga o último lançamento".`;
+    }
+
+    return sendReply(
+      `${emoji} Anotado!\nR$ ${result.amount.toFixed(2)}\nCategoria: ${categoryLine}\nDescrição: ${extraction.descricao}${accountLine}${installmentLine}${extraNote}${alertLine}${duplicateLine}`,
+    );
   }
 
-  if (!text) {
+  const mediaType = ((req.body.MediaContentType0 as string | undefined) ?? "").toLowerCase();
+  let text = body;
+  let receipt: ReceiptImage | null = null;
+  if (mediaUrl) {
+    if (mediaType.startsWith("image/")) {
+      if (!RECEIPT_IMAGE_TYPES.includes(mediaType)) {
+        return sendReply("Não consegui abrir essa imagem. Manda a foto do comprovante em JPG ou PNG.");
+      }
+      const image = await downloadMedia(mediaUrl);
+      if (image === "too_large") return sendReply("Essa foto é grande demais. Tenta mandar uma menor, ou escreve o valor e o local.");
+      receipt = { contentType: mediaType, base64: image.toString("base64") };
+    } else if (mediaType === "" || mediaType.startsWith("audio/")) {
+      const audio = await downloadMedia(mediaUrl);
+      if (audio === "too_large") return sendReply("Esse áudio é grande demais. Tenta um mais curto.");
+      text = await transcribeAudio(audio, "audio.ogg");
+    } else {
+      return sendReply("Ainda não leio esse tipo de arquivo. Pode mandar uma foto do comprovante, um áudio ou escrever o lançamento.");
+    }
+  }
+
+  if (!text && !receipt) {
     return sendReply("Não recebi nenhum texto ou áudio para interpretar.");
   }
 
@@ -120,6 +235,25 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
     }
     // Ambiguous reply or a stale (>5min) confirmation — drop it silently and
     // keep processing this message as a new, unrelated command.
+  }
+
+  if (receipt) {
+    const extraction = await extractFromReceipt(receipt, text, user.workspaceId, new Date());
+    // The receipt's own date is the one that counts — unless it looks misread.
+    const read = /^\d{4}-\d{2}-\d{2}$/.test(extraction.data_relativa) ? parseDay(extraction.data_relativa) : null;
+    const today = todayInBrazil();
+    if (!read || read > addDays(today, 1) || read < subDays(today, 400)) extraction.data_relativa = "hoje";
+
+    // A payment method or bank printed on the receipt ("Cartão de Débito",
+    // "Banco Inter") is not necessarily one of the user's accounts: use it only
+    // if it matches a registered one, otherwise fall back to the default.
+    if (extraction.conta && !(await findAccountByMention(extraction.conta, user.workspaceId))) extraction.conta = null;
+
+    // Words that feed the learned keyword rules: the caption plus what was read.
+    const words = [text, extraction.estabelecimento, extraction.descricao].filter(Boolean).join(" ");
+    const date = format(resolveDate(extraction.data_relativa, new Date()), "dd/MM/yyyy");
+    const note = "\n📷 Li do comprovante" + (extraction.estabelecimento ? ": " + extraction.estabelecimento : "") + " · " + date;
+    return registerAndReply(extraction, words, "photo", note);
   }
 
   if (DELETE_LAST_RE.test(text)) {
@@ -195,68 +329,5 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
     if (answer) return sendReply(answer);
   }
 
-  const extraction = await extractTransaction(text, user.workspaceId);
-
-  const result = await registerFromExtraction({
-    userId: user.id,
-    workspaceId: user.workspaceId,
-    extraction,
-    origin: mediaUrl ? "WHATSAPP_AUDIO" : "WHATSAPP_TEXT",
-    originalMessage: text,
-    receivedAt: new Date(),
-  });
-
-  await prisma.aiInteractionLog.create({
-    data: {
-      workspaceId: user.workspaceId,
-      userId: user.id,
-      transactionId: result.kind === "registered" ? result.transactionId : undefined,
-      channel: mediaUrl ? "whatsapp_audio" : "whatsapp_text",
-      originalMessage: body || undefined,
-      audioUrl: mediaUrl,
-      transcription: mediaUrl ? text : undefined,
-      model: "gpt-4o-2024-08-06",
-      extractedData: extraction,
-      confidence: extraction.confianca,
-    },
-  });
-
-  if (result.kind === "needs_clarification") {
-    return sendReply(result.question);
-  }
-
-  if (result.type === "ADJUSTMENT") {
-    const accountName = result.accountName ? `
-Conta: ${result.accountName}` : "";
-    return sendReply(`💳 Pagamento de fatura registrado!
-R$ ${result.amount.toFixed(2)}${accountName}
-O limite do cartão foi atualizado.`);
-  }
-
-  const emoji = extraction.tipo === "RECEITA" ? "💰" : "💸";
-  const accountLine = result.accountName ? `\nConta: ${result.accountName}` : "";
-  // The category actually stored, which a learned/known keyword may have
-  // chosen over what the AI named.
-  const categoryLine = result.categoryLabel ?? extraction.categoria;
-  const installmentLine = result.installments
-    ? `\nParcelado em ${result.installments.total}x de R$ ${result.installments.amountEach.toFixed(2)}`
-    : "";
-
-  let alertLine = "";
-  if (result.type === "EXPENSE" && result.categoryId) {
-    // Only the first installment actually lands in this month's spend —
-    // that's the figure the budget threshold check needs, not the total.
-    const amountThisMonth = result.installments ? result.installments.amountEach : result.amount;
-    alertLine = (await checkBudgetAlert(user.workspaceId, result.categoryId, amountThisMonth)) ?? "";
-  }
-
-  let duplicateLine = "";
-  if (result.possibleDuplicate) {
-    const at = result.possibleDuplicate.createdAt.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" });
-    duplicateLine = `\n⚠️ Parece repetido: você já tinha registrado "${result.possibleDuplicate.description}" com esse mesmo valor nesse dia (às ${at}). Se foi duplicado, mande "apaga o último lançamento".`;
-  }
-
-  return sendReply(
-    `${emoji} Anotado!\nR$ ${result.amount.toFixed(2)}\nCategoria: ${categoryLine}\nDescrição: ${extraction.descricao}${accountLine}${installmentLine}${alertLine}${duplicateLine}`,
-  );
+  return registerAndReply(await extractTransaction(text, user.workspaceId), text, mediaUrl ? "audio" : "text");
 }

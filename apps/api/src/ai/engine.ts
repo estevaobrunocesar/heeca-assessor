@@ -84,9 +84,13 @@ export async function extractTransaction(message: string, workspaceId: string): 
     throw new Error("AI did not return a parseable extraction");
   }
 
-  // The model sometimes returns "", "null" or "nenhuma" instead of an actual
-  // null for nullable string fields, even though the schema declares them
-  // nullable — normalize here so downstream code can rely on a real null.
+  return cleanExtraction(parsed);
+}
+
+// The model sometimes returns "", "null" or "nenhuma" instead of an actual
+// null for nullable string fields, even though the schema declares them
+// nullable — normalize here so downstream code can rely on a real null.
+function cleanExtraction(parsed: Extraction): Extraction {
   return {
     ...parsed,
     categoria: nullIfEmpty(parsed.categoria),
@@ -100,6 +104,55 @@ export async function extractTransaction(message: string, workspaceId: string): 
         ? null
         : cleanQuestion(parsed.pergunta_esclarecimento),
   };
+}
+
+const RECEIPT_RULES = String.raw`A entrada desta vez e uma FOTO de comprovante (cupom fiscal, nota, comprovante de maquininha/cartao,
+comprovante de PIX ou transferencia, recibo), nao uma mensagem de texto. Leia a imagem e extraia UM lancamento.
+- "valor": o TOTAL efetivamente pago/transferido. Nunca o subtotal, o troco, o valor entregue em dinheiro nem o
+  valor de um item isolado. Em compra parcelada no cartao ("3x de 50,00") use o total da compra e marque parcelado.
+- "estabelecimento": o nome de quem recebeu o pagamento (loja, restaurante), como impresso, sem CNPJ. Em PIX ou
+  transferencia e o FAVORECIDO ("Para: ..."), nunca o banco ou a instituicao.
+- "conta": deixe null, a menos que a LEGENDA do usuario cite uma conta. Nunca copie a forma de pagamento ou o banco
+  impressos no comprovante ("Cartao de Debito", "Visa", "Banco Inter") para este campo.
+- "descricao": curta, com o estabelecimento (ex: "Padaria Pao Quente").
+- "data_relativa": a data do comprovante em YYYY-MM-DD. Datas brasileiras sao DIA/MES/ANO (03/10 e 3 de outubro).
+  Sem ano, use o ano atual. Se nao houver data legivel, use "hoje".
+- "tipo": DESPESA para compras, pagamentos, PIX/transferencia enviados; RECEITA para PIX/transferencia recebidos
+  ou depositos. Se a imagem NAO for um comprovante financeiro, ou o total nao estiver legivel, use tipo INDEFINIDO,
+  valor null e explique em "pergunta_esclarecimento" o que nao deu para ler.
+- Se a legenda do usuario trouxer conta, categoria ou parcelas, respeite-a.
+- A foto pode estar torta, amassada ou cortada: se tiver duvida real sobre o total, baixe a confianca (<0.7).`;
+
+export type ReceiptImage = { contentType: string; base64: string };
+
+/** Reads a photographed receipt into the same Extraction a typed message produces. */
+export async function extractFromReceipt(
+  image: ReceiptImage,
+  caption: string,
+  workspaceId: string,
+  today: Date,
+): Promise<Extraction> {
+  const categoryPrompt = await buildCategoryPrompt(workspaceId);
+  const iso = today.toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+
+  const completion = await openai.beta.chat.completions.parse({
+    model: "gpt-4o-2024-08-06",
+    messages: [
+      { role: "system", content: `${BASE_PROMPT}\n\n${RECEIPT_RULES}\n\nHoje e ${iso}.${categoryPrompt}` },
+      {
+        role: "user",
+        content: [
+          { type: "text", text: caption || "Registre este comprovante." },
+          { type: "image_url", image_url: { url: `data:${image.contentType};base64,${image.base64}` } },
+        ],
+      },
+    ],
+    response_format: zodResponseFormat(ExtractionSchema, "extraction"),
+  });
+
+  const parsed = completion.choices[0]?.message?.parsed;
+  if (!parsed) throw new Error("AI did not return a parseable receipt extraction");
+  return cleanExtraction(parsed);
 }
 
 const QUERY_PROMPT = `Voce interpreta perguntas sobre financas pessoais feitas por WhatsApp (portugues do Brasil).

@@ -55,6 +55,7 @@ enum TransactionStatus {
 enum TransactionOrigin {
   WHATSAPP_TEXT
   WHATSAPP_AUDIO
+  WHATSAPP_PHOTO
   DASHBOARD
 }
 
