@@ -3,6 +3,7 @@ import express from "express";
 import rateLimit from "express-rate-limit";
 import cron from "node-cron";
 import { handleIncomingWhatsapp } from "./gateway/whatsapp";
+import { verifyTwilioSignature } from "./gateway/twilioAuth";
 import { dashboardRouter } from "./routes/dashboard";
 import { transactionsRouter } from "./routes/transactions";
 import { categoriesRouter } from "./routes/categories";
@@ -37,7 +38,7 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-app.post("/webhook/whatsapp", webhookLimiter, handleIncomingWhatsapp);
+app.post("/webhook/whatsapp", webhookLimiter, verifyTwilioSignature, handleIncomingWhatsapp);
 app.get("/health", (_req, res) => res.json({ ok: true }));
 app.use("/api/auth", authLimiter, authRouter);
 
