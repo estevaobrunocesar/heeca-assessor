@@ -3,7 +3,10 @@ import { login } from "../auth/service";
 import { requireAuth } from "../auth/middleware";
 import { createPasswordResetToken, consumePasswordResetToken } from "../auth/passwordReset";
 import { sendPasswordResetEmail, isEmailConfigured } from "../email/resend";
+import { normalizePhone } from "../users/service";
 import { prisma } from "../db/client";
+
+const PHONE_RE = /^\+\d{8,15}$/;
 
 export const authRouter = Router();
 
@@ -57,8 +60,34 @@ authRouter.post("/reset-password", async (req, res) => {
 authRouter.get("/me", requireAuth, async (req, res) => {
   const user = await prisma.user.findUnique({
     where: { id: req.auth!.sub },
-    select: { id: true, name: true, role: true },
+    select: { id: true, name: true, role: true, whatsappPhone: true },
   });
   if (!user) return res.status(404).json({ error: "User not found" });
+  res.json(user);
+});
+
+// Links the WhatsApp number the user talks to the Assessor from to their own
+// account. Asked right after login when whatsappPhone is still unset — until
+// then, messages from that number have no user to resolve to and are
+// discarded by the webhook before any AI call is made.
+authRouter.post("/phone", requireAuth, async (req, res) => {
+  const { whatsappPhone } = req.body as { whatsappPhone?: string };
+  if (!whatsappPhone) return res.status(400).json({ error: "whatsappPhone is required" });
+
+  const phone = normalizePhone(whatsappPhone);
+  if (!PHONE_RE.test(phone)) {
+    return res.status(400).json({ error: "Use o formato internacional, ex: +5511999998888" });
+  }
+
+  const existing = await prisma.user.findUnique({ where: { whatsappPhone: phone } });
+  if (existing && existing.id !== req.auth!.sub) {
+    return res.status(409).json({ error: "Esse número já está vinculado a outro usuário." });
+  }
+
+  const user = await prisma.user.update({
+    where: { id: req.auth!.sub },
+    data: { whatsappPhone: phone },
+    select: { id: true, name: true, role: true, whatsappPhone: true },
+  });
   res.json(user);
 });

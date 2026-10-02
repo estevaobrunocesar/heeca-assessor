@@ -4,7 +4,7 @@ import { apiFetch } from "../../../lib/api";
 type User = {
   id: string;
   name: string;
-  whatsappPhone: string;
+  whatsappPhone: string | null;
   email: string;
   role: "ADMIN" | "USER";
   status: "ACTIVE" | "INACTIVE";
@@ -28,7 +28,6 @@ async function createUser(formData: FormData) {
     body: JSON.stringify({
       name: formData.get("name"),
       email: formData.get("email"),
-      whatsappPhone: formData.get("whatsappPhone"),
       password: formData.get("password"),
       role: formData.get("role"),
     }),
@@ -95,7 +94,9 @@ export default async function UsersAdminPage() {
                   </div>
                 </td>
                 <td style={{ color: "var(--muted)" }}>{u.email}</td>
-                <td style={{ color: "var(--muted)" }}>{u.whatsappPhone}</td>
+                <td style={{ color: "var(--muted)" }}>
+                  {u.whatsappPhone ?? <span className="pill pill-muted">Não vinculado</span>}
+                </td>
                 <td style={{ color: "var(--muted)" }}>{u.role === "ADMIN" ? "Administrador" : "Usuário"}</td>
                 <td>
                   <span className={`pill ${u.status === "ACTIVE" ? "pill-green" : "pill-muted"}`}>
@@ -122,7 +123,6 @@ export default async function UsersAdminPage() {
         <form action={createUser} style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <input name="name" placeholder="Nome" required className="field" style={{ flex: "1 1 140px" }} />
           <input name="email" type="email" placeholder="E-mail" required className="field" style={{ flex: "1 1 160px" }} />
-          <input name="whatsappPhone" placeholder="+5511999998888" required className="field" style={{ flex: "1 1 160px" }} />
           <input name="password" type="password" placeholder="Senha" required className="field" style={{ flex: "1 1 120px" }} />
           <select name="role" defaultValue="USER" className="field">
             <option value="USER">Usuário</option>
@@ -132,6 +132,9 @@ export default async function UsersAdminPage() {
             Criar
           </button>
         </form>
+        <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 10 }}>
+          O número do WhatsApp é vinculado pelo próprio usuário no primeiro acesso ao dashboard.
+        </p>
       </div>
     </main>
   );

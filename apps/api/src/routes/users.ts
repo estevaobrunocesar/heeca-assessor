@@ -2,7 +2,6 @@ import { Router } from "express";
 import { prisma } from "../db/client";
 import { requireAdmin } from "../auth/middleware";
 import { hashPassword } from "../auth/service";
-import { normalizePhone } from "../users/service";
 import type { UserRole } from "@prisma/client";
 
 export const usersRouter = Router();
@@ -26,22 +25,20 @@ usersRouter.get("/", requireAdmin, async (req, res) => {
 });
 
 usersRouter.post("/", requireAdmin, async (req, res) => {
-  const { name, whatsappPhone, email, password, role } = req.body as {
+  const { name, email, password, role } = req.body as {
     name?: string;
-    whatsappPhone?: string;
     email?: string;
     password?: string;
     role?: UserRole;
   };
-  if (!name || !whatsappPhone || !email || !password) {
-    return res.status(400).json({ error: "name, whatsappPhone, email and password are required" });
+  if (!name || !email || !password) {
+    return res.status(400).json({ error: "name, email and password are required" });
   }
 
   const user = await prisma.user.create({
     data: {
       workspaceId: req.auth!.workspaceId,
       name,
-      whatsappPhone: normalizePhone(whatsappPhone),
       email: email.trim().toLowerCase(),
       passwordHash: await hashPassword(password),
       role: role ?? "USER",

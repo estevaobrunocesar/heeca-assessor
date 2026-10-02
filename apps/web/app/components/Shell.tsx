@@ -4,6 +4,7 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
+import { PhoneLinkModal } from "./PhoneLinkModal";
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -20,6 +21,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <Topbar onToggleSidebar={() => setCollapsed((v) => !v)} />
         {children}
       </div>
+      <PhoneLinkModal />
     </div>
   );
 }
