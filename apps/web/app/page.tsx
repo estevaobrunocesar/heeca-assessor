@@ -1,4 +1,4 @@
-import { TrendingUp, TrendingDown, Wallet, PiggyBank } from "lucide-react";
+import { TrendingUp, TrendingDown, Wallet, PiggyBank, CreditCard } from "lucide-react";
 import { apiFetch } from "../lib/api";
 import { TrendChart, CategoryPieChart } from "./components/Charts";
 
@@ -10,7 +10,7 @@ type Summary = {
 };
 
 type TrendPoint = { month: string; income: number; expense: number; result: number };
-type Account = { balance: number };
+type Account = { type: string; balance: number; creditLimit: number | null; availableLimit: number | null };
 
 async function getSummary(): Promise<Summary> {
   const res = await apiFetch("/api/dashboard/summary");
@@ -22,10 +22,9 @@ async function getTrend(): Promise<TrendPoint[]> {
   return res.json();
 }
 
-async function getAccountsTotal(): Promise<number> {
+async function getAccounts(): Promise<Account[]> {
   const res = await apiFetch("/api/accounts");
-  const accounts: Account[] = await res.json();
-  return accounts.reduce((sum, a) => sum + a.balance, 0);
+  return res.json();
 }
 
 function formatBRL(value: number) {
@@ -33,8 +32,17 @@ function formatBRL(value: number) {
 }
 
 export default async function DashboardPage() {
-  const [summary, trend, accountsTotal] = await Promise.all([getSummary(), getTrend(), getAccountsTotal()]);
+  const [summary, trend, accounts] = await Promise.all([getSummary(), getTrend(), getAccounts()]);
   const monthLabel = new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+
+  // Credit card limits are spending capacity, not cash — mixing them into
+  // "saldo total em contas" would make that figure meaningless, so they get
+  // their own card instead.
+  const cashAccounts = accounts.filter((a) => a.type !== "CREDIT_CARD");
+  const cardAccounts = accounts.filter((a) => a.type === "CREDIT_CARD" && a.creditLimit !== null);
+  const accountsTotal = cashAccounts.reduce((sum, a) => sum + a.balance, 0);
+  const cardLimitTotal = cardAccounts.reduce((sum, a) => sum + (a.creditLimit ?? 0), 0);
+  const cardAvailableTotal = cardAccounts.reduce((sum, a) => sum + (a.availableLimit ?? 0), 0);
 
   const cards = [
     { label: "Receitas", value: summary.income, icon: TrendingUp, color: "green" as const },
@@ -81,6 +89,32 @@ export default async function DashboardPage() {
             </div>
           );
         })}
+
+        {cardAccounts.length > 0 && (
+          <div className="card" style={{ padding: 18, display: "flex", gap: 14, alignItems: "flex-start" }}>
+            <div
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: 10,
+                background: "var(--red-soft)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <CreditCard size={19} color="var(--red)" />
+            </div>
+            <div>
+              <div style={{ fontSize: 13, color: "var(--muted)" }}>Cartões de crédito</div>
+              <div style={{ fontSize: 20, fontWeight: 700, marginTop: 3 }}>{formatBRL(cardAvailableTotal)}</div>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
+                disponível de {formatBRL(cardLimitTotal)} em limite
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16, marginTop: 24 }}>

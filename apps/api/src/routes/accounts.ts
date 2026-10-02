@@ -12,22 +12,38 @@ accountsRouter.get("/", async (req, res) => {
     orderBy: { createdAt: "asc" },
   });
   const withBalance = await Promise.all(
-    accounts.map(async (a) => ({ ...a, balance: await getAccountBalance(a.id) })),
+    accounts.map(async (a) => {
+      const balance = await getAccountBalance(a.id);
+      const creditLimit = a.creditLimit !== null ? Number(a.creditLimit) : null;
+      // For a credit card, "balance" (adjustments minus expenses, no income)
+      // is exactly how much the limit has moved from its starting point —
+      // adding it to the card's limit gives what the bank app calls
+      // "disponível": the limit minus whatever's currently owed.
+      const availableLimit = a.type === "CREDIT_CARD" && creditLimit !== null ? creditLimit + balance : null;
+      return { ...a, creditLimit, balance, availableLimit };
+    }),
   );
   res.json(withBalance);
 });
 
 accountsRouter.post("/", requireAdmin, async (req, res) => {
-  const { name, bank, type, isDefault } = req.body as {
+  const { name, bank, type, isDefault, creditLimit } = req.body as {
     name?: string;
     bank?: string;
     type?: AccountType;
     isDefault?: boolean;
+    creditLimit?: number;
   };
   if (!name) return res.status(400).json({ error: "name is required" });
 
   const account = await prisma.account.create({
-    data: { name, bank, type: type ?? "CHECKING", workspaceId: req.auth!.workspaceId },
+    data: {
+      name,
+      bank,
+      type: type ?? "CHECKING",
+      workspaceId: req.auth!.workspaceId,
+      creditLimit: typeof creditLimit === "number" ? creditLimit : undefined,
+    },
   });
 
   if (isDefault) await setDefaultAccount(account.id, req.auth!.workspaceId);
@@ -36,18 +52,19 @@ accountsRouter.post("/", requireAdmin, async (req, res) => {
 });
 
 accountsRouter.patch("/:id", requireAdmin, async (req, res) => {
-  const { name, bank, type, isDefault } = req.body as {
+  const { name, bank, type, isDefault, creditLimit } = req.body as {
     name?: string;
     bank?: string;
     type?: AccountType;
     isDefault?: boolean;
+    creditLimit?: number;
   };
 
   if (isDefault) await setDefaultAccount(req.params.id, req.auth!.workspaceId);
 
   const result = await prisma.account.updateMany({
     where: { id: req.params.id, workspaceId: req.auth!.workspaceId },
-    data: { name, bank, type },
+    data: { name, bank, type, creditLimit: typeof creditLimit === "number" ? creditLimit : undefined },
   });
   if (result.count === 0) return res.status(404).json({ error: "Account not found" });
 

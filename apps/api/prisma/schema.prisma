@@ -134,11 +134,12 @@ model Account {
   workspaceId String
   workspace   Workspace @relation(fields: [workspaceId], references: [id])
 
-  name      String
-  bank      String?
-  type      AccountType @default(CHECKING)
-  isDefault Boolean     @default(false)
-  createdAt DateTime    @default(now())
+  name       String
+  bank       String?
+  type       AccountType @default(CHECKING)
+  isDefault  Boolean     @default(false)
+  creditLimit Decimal?   @db.Decimal(12, 2) // CREDIT_CARD only: the card's total limit, set manually
+  createdAt  DateTime    @default(now())
 
   transactions   Transaction[]
   recurringRules RecurringRule[]
