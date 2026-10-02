@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { ArrowUpRight, ArrowDownRight, ArrowLeftRight, Scale } from "lucide-react";
+import { revalidatePath } from "next/cache";
 import { apiFetch } from "../../lib/api";
+import { DeleteTransactionButton } from "../components/DeleteTransactionButton";
 
 type Transaction = {
   id: string;
@@ -11,6 +13,8 @@ type Transaction = {
   category: { name: string } | null;
   user: { name: string };
   account: { name: string } | null;
+  isInstallment: boolean;
+  installmentTotal: number | null;
 };
 
 type Category = { id: string; name: string };
@@ -39,6 +43,13 @@ async function getTransactions(searchParams: Record<string, string | undefined>)
 
   const res = await apiFetch(`/api/transactions?${params.toString()}`);
   return res.json() as Promise<{ transactions: Transaction[]; total: number }>;
+}
+
+async function deleteTransaction(formData: FormData) {
+  "use server";
+  await apiFetch(`/api/transactions/${formData.get("id")}`, { method: "DELETE" });
+  revalidatePath("/lancamentos");
+  revalidatePath("/");
 }
 
 async function getCategories() {
@@ -111,7 +122,8 @@ export default async function LancamentosPage({
               <th style={{ paddingTop: 16 }}>Categoria</th>
               <th style={{ paddingTop: 16 }}>Conta</th>
               <th style={{ paddingTop: 16 }}>Tipo</th>
-              <th style={{ textAlign: "right", paddingRight: 18, paddingTop: 16 }}>Valor</th>
+              <th style={{ textAlign: "right", paddingTop: 16 }}>Valor</th>
+              <th style={{ paddingRight: 18, paddingTop: 16 }}></th>
             </tr>
           </thead>
           <tbody>
@@ -135,7 +147,6 @@ export default async function LancamentosPage({
                   <td
                     style={{
                       textAlign: "right",
-                      paddingRight: 18,
                       fontWeight: 600,
                       color: isNegative ? "var(--red)" : "var(--green)",
                     }}
@@ -143,12 +154,19 @@ export default async function LancamentosPage({
                     {isNegative ? "- " : "+ "}
                     {formatBRL(Math.abs(amount))}
                   </td>
+                  <td style={{ paddingRight: 18, textAlign: "right" }}>
+                    <DeleteTransactionButton
+                      action={deleteTransaction}
+                      id={t.id}
+                      installmentTotal={t.isInstallment ? t.installmentTotal : null}
+                    />
+                  </td>
                 </tr>
               );
             })}
             {transactions.length === 0 && (
               <tr>
-                <td colSpan={6} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>
+                <td colSpan={7} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>
                   Nenhum lançamento encontrado.
                 </td>
               </tr>

@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../db/client";
+import { requireAdmin } from "../auth/middleware";
+import { deleteTransaction } from "../financial/engine";
 import type { Prisma, TransactionType } from "@prisma/client";
 
 export const transactionsRouter = Router();
@@ -32,4 +34,13 @@ transactionsRouter.get("/", async (req, res) => {
   ]);
 
   res.json({ transactions, total, page: Number(page) || 1, pageSize: take });
+});
+
+// Same soft-delete the WhatsApp "apagar o último lançamento" flow uses: the
+// row stays in the database as DELETED, and deleting any installment of a
+// purchase removes the whole purchase.
+transactionsRouter.delete("/:id", requireAdmin, async (req, res) => {
+  const result = await deleteTransaction(req.params.id, req.auth!.workspaceId);
+  if (result.count === 0) return res.status(404).json({ error: "Transaction not found" });
+  res.json({ removed: result.count });
 });

@@ -130,7 +130,7 @@ export async function getLastTransaction(userId: string, workspaceId: string) {
 }
 
 export async function deleteTransaction(transactionId: string, workspaceId: string) {
-  const target = await prisma.transaction.findFirst({ where: { id: transactionId, workspaceId } });
+  const target = await prisma.transaction.findFirst({ where: { id: transactionId, workspaceId, status: "CONFIRMED" } });
   if (!target) return { count: 0 };
 
   // An installment purchase is several rows (one per month) with no shared
