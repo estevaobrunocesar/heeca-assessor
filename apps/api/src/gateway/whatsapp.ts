@@ -5,6 +5,7 @@ import { transcribeAudio, extractTransaction } from "../ai/engine";
 import { registerFromExtraction, getLastTransaction, deleteTransaction, updateTransactionAmount, updateTransactionCategory } from "../financial/engine";
 import { answerFinanceQuery, QUERY_GATE_RE } from "./query";
 import { answerInvoiceQuery, isInvoiceQuery } from "./invoice";
+import { buildReportReply, isReportRequest } from "./report";
 import { answerBillList, handleBillCreate, handleBillPayment, isBillListQuery, mightCreateBill, mightPayBill } from "./bills";
 import { checkBudgetAlert } from "../financial/budgets";
 import { prisma } from "../db/client";
@@ -12,9 +13,10 @@ import { prisma } from "../db/client";
 // Replies are sent as TwiML in the webhook response, not via the REST
 // client, so no Twilio client needs to be constructed here.
 
-function reply(res: Response, message: string) {
+function reply(res: Response, message: string, media: string[] = []) {
   const twiml = new twilio.twiml.MessagingResponse();
-  twiml.message(message);
+  const msg = twiml.message(message);
+  for (const url of media) msg.media(url);
   res.type("text/xml").send(twiml.toString());
 }
 
@@ -69,11 +71,11 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
     }
   }
 
-  async function sendReply(message: string) {
+  async function sendReply(message: string, media: string[] = []) {
     if (messageSid) {
       await prisma.webhookEvent.update({ where: { messageSid }, data: { reply: message } }).catch(() => {});
     }
-    reply(res, message);
+    reply(res, message, media);
   }
 
   const user = await findUserByPhone(from);
@@ -156,6 +158,12 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
     const fixed = await updateTransactionCategory(last.id, user.workspaceId, categoryName);
     const learned = fixed.learnedKeyword ? `\nVou lembrar: "${fixed.learnedKeyword}" → ${fixed.label}.` : "";
     return sendReply(`Categoria corrigida para ${fixed.label}.${learned}`);
+  }
+
+  if (isReportRequest(text)) {
+    const baseUrl = process.env.PUBLIC_API_URL ?? `${req.protocol}://${req.get("host")}`;
+    const report = await buildReportReply(text, user, baseUrl);
+    return sendReply(report.message, report.media);
   }
 
   if (isInvoiceQuery(text)) {

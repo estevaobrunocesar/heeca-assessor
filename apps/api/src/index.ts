@@ -14,6 +14,8 @@ import { recurringRouter } from "./routes/recurring";
 import { invoicesRouter } from "./routes/invoices";
 import { billsRouter } from "./routes/bills";
 import { categoryKeywordsRouter } from "./routes/categoryKeywords";
+import { reportsRouter } from "./routes/reports";
+import { getTemporaryFile } from "./reports/store";
 import { workspaceRouter } from "./routes/workspace";
 import { authRouter } from "./routes/auth";
 import { requireAuth } from "./auth/middleware";
@@ -43,6 +45,17 @@ const authLimiter = rateLimit({
 
 app.post("/webhook/whatsapp", webhookLimiter, verifyTwilioSignature, handleIncomingWhatsapp);
 app.get("/health", (_req, res) => res.json({ ok: true }));
+
+// Public on purpose: Twilio fetches WhatsApp attachments without credentials.
+// Access is the unguessable, short-lived token in the path (see reports/store).
+app.get("/reports/:token/:filename", webhookLimiter, (req, res) => {
+  const file = /^[a-f0-9]{48}$/.test(req.params.token) ? getTemporaryFile(req.params.token) : undefined;
+  if (!file) return res.status(404).send("Not found");
+  res.setHeader("Content-Type", file.contentType);
+  res.setHeader("Content-Disposition", `inline; filename="${file.filename}"`);
+  res.setHeader("Cache-Control", "no-store");
+  res.send(file.buffer);
+});
 app.use("/api/auth", authLimiter, authRouter);
 
 app.use("/api/dashboard", requireAuth, dashboardRouter);
@@ -55,6 +68,7 @@ app.use("/api/recurring", requireAuth, recurringRouter);
 app.use("/api/invoices", requireAuth, invoicesRouter);
 app.use("/api/bills", requireAuth, billsRouter);
 app.use("/api/category-keywords", requireAuth, categoryKeywordsRouter);
+app.use("/api/reports", requireAuth, reportsRouter);
 app.use("/api/workspace", requireAuth, workspaceRouter);
 
 const port = process.env.PORT ?? 3001;

@@ -1,12 +1,153 @@
-import { BarChart3 } from "lucide-react";
-import { ComingSoon } from "../components/ComingSoon";
+import Link from "next/link";
+import { FileText, FileSpreadsheet } from "lucide-react";
+import { apiFetch } from "../../lib/api";
 
-export default function RelatoriosPage() {
+type ReportData = {
+  label: string;
+  income: number;
+  expense: number;
+  result: number;
+  expenseByCategory: { name: string; total: number; percent: number; subs: { name: string; total: number }[] }[];
+  incomeByCategory: { name: string; total: number }[];
+  transactions: unknown[];
+};
+
+const PRESETS = [
+  { preset: "mes", label: "Este mês" },
+  { preset: "mes-passado", label: "Mês passado" },
+  { preset: "30d", label: "Últimos 30 dias" },
+  { preset: "ano", label: "Este ano" },
+];
+
+function formatBRL(value: number) {
+  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+export default async function RelatoriosPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
+  const { preset, from, to } = await searchParams;
+  const custom = !!(from && to);
+
+  const query = new URLSearchParams();
+  if (custom) {
+    query.set("from", from!);
+    query.set("to", to!);
+  } else if (preset) {
+    query.set("preset", preset);
+  }
+  const qs = query.toString();
+
+  const res = await apiFetch(`/api/reports/data${qs ? `?${qs}` : ""}`);
+  const data: ReportData | null = res.ok ? await res.json() : null;
+  const activePreset = custom ? null : (preset ?? "mes");
+  const download = (format: "pdf" | "xlsx") => `/api/reports/file?format=${format}${qs ? `&${qs}` : ""}`;
+
   return (
-    <ComingSoon
-      icon={BarChart3}
-      title="Relatórios"
-      description="Relatórios detalhados de receitas, despesas e evolução patrimonial chegam em breve."
-    />
+    <main style={{ padding: "28px 28px 48px" }}>
+      <div>
+        <h1 style={{ fontSize: 24 }}>Relatórios</h1>
+        <p style={{ color: "var(--muted)", fontSize: 14, marginTop: 4 }}>
+          Resumo do período e arquivos para baixar. Também dá para pedir pelo WhatsApp: &quot;me manda o relatório de setembro em PDF&quot;.
+        </p>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 20 }}>
+        {PRESETS.map((p) => (
+          <Link key={p.preset} href={`/relatorios?preset=${p.preset}`} className={`tab ${activePreset === p.preset ? "tab-active" : ""}`}>
+            {p.label}
+          </Link>
+        ))}
+        <form method="get" style={{ display: "flex", gap: 6, alignItems: "center", marginLeft: 8 }}>
+          <input type="date" name="from" defaultValue={from} required className="field" style={{ fontSize: 13 }} />
+          <span style={{ color: "var(--muted)", fontSize: 13 }}>até</span>
+          <input type="date" name="to" defaultValue={to} required className="field" style={{ fontSize: 13 }} />
+          <button type="submit" className={`btn ${custom ? "btn-primary" : "btn-ghost"}`} style={{ fontSize: 13 }}>
+            Aplicar
+          </button>
+        </form>
+      </div>
+
+      {!data ? (
+        <div className="card" style={{ padding: 24, marginTop: 24, color: "var(--muted)" }}>
+          Não foi possível carregar o relatório.
+        </div>
+      ) : (
+        <>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginTop: 24 }}>
+            <div style={{ color: "var(--muted)", fontSize: 14 }}>
+              Período: <strong style={{ color: "var(--ink)" }}>{data.label}</strong> · {data.transactions.length} lançamento(s)
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <a href={download("pdf")} className="btn btn-primary" style={{ gap: 6 }}>
+                <FileText size={15} /> Baixar PDF
+              </a>
+              <a href={download("xlsx")} className="btn btn-ghost" style={{ gap: 6 }}>
+                <FileSpreadsheet size={15} /> Baixar Excel
+              </a>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14, marginTop: 16 }}>
+            {[
+              { label: "Receitas", value: data.income, color: "var(--green)" },
+              { label: "Despesas", value: data.expense, color: "var(--red)" },
+              { label: "Resultado", value: data.result, color: data.result >= 0 ? "var(--green)" : "var(--red)" },
+            ].map((k) => (
+              <div key={k.label} className="card" style={{ padding: 16 }}>
+                <div style={{ fontSize: 13, color: "var(--muted)" }}>{k.label}</div>
+                <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4, color: k.color }}>{formatBRL(k.value)}</div>
+              </div>
+            ))}
+          </div>
+
+          {data.expenseByCategory.length > 0 && (
+            <div className="card" style={{ marginTop: 20, overflow: "hidden" }}>
+              <div style={{ padding: "14px 18px", fontWeight: 600, fontSize: 14 }}>Despesas por categoria</div>
+              <table>
+                <tbody>
+                  {data.expenseByCategory.map((c) => (
+                    <tr key={c.name}>
+                      <td style={{ paddingLeft: 18, fontWeight: 500, width: "35%" }}>{c.name}</td>
+                      <td style={{ width: "35%" }}>
+                        <div style={{ background: "var(--field-bg)", borderRadius: 999, height: 6, overflow: "hidden" }}>
+                          <div style={{ width: `${Math.min(c.percent, 100)}%`, background: "var(--red)", height: "100%" }} />
+                        </div>
+                      </td>
+                      <td style={{ textAlign: "right", color: "var(--muted)" }}>{c.percent.toFixed(1)}%</td>
+                      <td style={{ textAlign: "right", paddingRight: 18, fontWeight: 600 }}>{formatBRL(c.total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {data.incomeByCategory.length > 0 && (
+            <div className="card" style={{ marginTop: 16, overflow: "hidden" }}>
+              <div style={{ padding: "14px 18px", fontWeight: 600, fontSize: 14 }}>Receitas por categoria</div>
+              <table>
+                <tbody>
+                  {data.incomeByCategory.map((c) => (
+                    <tr key={c.name}>
+                      <td style={{ paddingLeft: 18, fontWeight: 500 }}>{c.name}</td>
+                      <td style={{ textAlign: "right", paddingRight: 18, fontWeight: 600 }}>{formatBRL(c.total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {data.transactions.length === 0 && (
+            <div className="card" style={{ padding: 24, marginTop: 20, color: "var(--muted)", fontSize: 14 }}>
+              Nenhum lançamento neste período.
+            </div>
+          )}
+        </>
+      )}
+    </main>
   );
 }
