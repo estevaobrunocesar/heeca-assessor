@@ -56,6 +56,7 @@ enum TransactionOrigin {
   WHATSAPP_TEXT
   WHATSAPP_AUDIO
   WHATSAPP_PHOTO
+  WHATSAPP_FILE
   DASHBOARD
 }
 
@@ -217,6 +218,8 @@ model Transaction {
   /// Shared by every row of one installment purchase. Null on rows created
   /// before this existed, which are grouped by original message instead.
   installmentGroupId String?
+  /// Set on rows created by a file import, so the whole import can be undone.
+  importBatchId String?
 
   origin          TransactionOrigin
   originalMessage String?
@@ -227,6 +230,8 @@ model Transaction {
   updatedAt       DateTime           @updatedAt
 
   aiLogs          AiInteractionLog[]
+
+  @@index([importBatchId])
 }
 
 /// A word or phrase that decides a category deterministically, ahead of the

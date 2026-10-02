@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import type { Prisma } from "@prisma/client";
 import twilio from "twilio";
 import { findUserByPhone } from "../users/service";
 import { transcribeAudio, extractTransaction, extractFromReceipt, type ReceiptImage } from "../ai/engine";
@@ -6,6 +7,10 @@ import type { Extraction } from "../ai/schema";
 import { addDays, format, subDays } from "date-fns";
 import { resolveDate } from "../financial/resolveDate";
 import { findAccountByMention } from "../financial/accounts";
+import { classifyDocument, FriendlyError, type DocumentKind } from "../imports/document";
+import { commitImport, latestImportBatch, undoImport, type StagedImport } from "../imports/statement";
+import { readAndStageDocument, summarizeStaged } from "./importFile";
+import { sendWhatsapp } from "./outbound";
 import { parseDay } from "../financial/bills";
 import { todayInBrazil } from "../financial/invoices";
 import { registerFromExtraction, getLastTransaction, deleteTransaction, updateTransactionAmount, updateTransactionCategory } from "../financial/engine";
@@ -36,6 +41,27 @@ const FIX_CATEGORY_RE =
 const CONFIRM_RE = /^(sim|confirmo|confirmar|pode|ok|isso)\b/i;
 const CANCEL_RE = /^(n[aã]o|cancela|cancelar)\b/i;
 const PENDING_CONFIRMATION_TTL_MS = 5 * 60 * 1000;
+// A statement took real work to read, so its confirmation waits longer.
+const IMPORT_PENDING_TTL_MS = 30 * 60 * 1000;
+const UNDO_IMPORT_RE = /\b(desfaz(?:er)?|apaga(?:r)?|cancela(?:r)?|remove(?:r)?)\s+(?:a\s+)?(?:[úu]ltima\s+)?importa[cç][aã]o\b/i;
+
+const isDocumentMediaType = (type: string) =>
+  type === "application/pdf" ||
+  type.includes("spreadsheetml") ||
+  type === "text/csv" ||
+  type === "application/csv" ||
+  type === "text/plain" ||
+  type === "application/vnd.ms-excel";
+
+/** One confirmation per user: a new one replaces whatever was waiting. */
+function setPending(userId: string, action: string, payload: object) {
+  const data = payload as Prisma.InputJsonValue;
+  return prisma.pendingConfirmation.upsert({
+    where: { userId },
+    create: { userId, action, payload: data },
+    update: { action, payload: data, createdAt: new Date() },
+  });
+}
 
 type DeleteTransactionPayload = { transactionId: string; description: string; amount: number };
 
@@ -109,10 +135,11 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
   async function registerAndReply(
     extraction: Extraction,
     originalText: string,
-    source: "text" | "audio" | "photo",
+    source: "text" | "audio" | "photo" | "file",
     extraNote = "",
+    deliver: (message: string) => unknown = sendReply,
   ) {
-    const origin = { text: "WHATSAPP_TEXT", audio: "WHATSAPP_AUDIO", photo: "WHATSAPP_PHOTO" } as const;
+    const origin = { text: "WHATSAPP_TEXT", audio: "WHATSAPP_AUDIO", photo: "WHATSAPP_PHOTO", file: "WHATSAPP_FILE" } as const;
 
     const result = await registerFromExtraction({
       userId: user!.id,
@@ -145,7 +172,7 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
         source === "photo" &&
         !extraction.pergunta_esclarecimento &&
         (extraction.tipo === "INDEFINIDO" || extraction.valor === null || extraction.valor <= 0);
-      return sendReply(
+      return deliver(
         unreadable
           ? "Não consegui ler esse comprovante. Manda outra foto mais nítida, ou escreve o valor e o local."
           : result.question,
@@ -154,7 +181,7 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
 
     if (result.type === "ADJUSTMENT") {
       const accountName = result.accountName ? `\nConta: ${result.accountName}` : "";
-      return sendReply(
+      return deliver(
         `💳 Pagamento de fatura registrado!\nR$ ${result.amount.toFixed(2)}${accountName}\nO limite do cartão foi atualizado.`,
       );
     }
@@ -186,7 +213,7 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
       duplicateLine = `\n⚠️ Parece repetido: você já tinha registrado "${result.possibleDuplicate.description}" com esse mesmo valor nesse dia (às ${at}). Se foi duplicado, mande "apaga o último lançamento".`;
     }
 
-    return sendReply(
+    return deliver(
       `${emoji} Anotado!\nR$ ${result.amount.toFixed(2)}\nCategoria: ${categoryLine}\nDescrição: ${extraction.descricao}${accountLine}${installmentLine}${extraNote}${alertLine}${duplicateLine}`,
     );
   }
@@ -194,6 +221,7 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
   const mediaType = ((req.body.MediaContentType0 as string | undefined) ?? "").toLowerCase();
   let text = body;
   let receipt: ReceiptImage | null = null;
+  let document: { buffer: Buffer; kind: DocumentKind } | null = null;
   if (mediaUrl) {
     if (mediaType.startsWith("image/")) {
       if (!RECEIPT_IMAGE_TYPES.includes(mediaType)) {
@@ -206,12 +234,18 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
       const audio = await downloadMedia(mediaUrl);
       if (audio === "too_large") return sendReply("Esse áudio é grande demais. Tenta um mais curto.");
       text = await transcribeAudio(audio, "audio.ogg");
+    } else if (isDocumentMediaType(mediaType)) {
+      const file = await downloadMedia(mediaUrl);
+      if (file === "too_large") return sendReply("Esse arquivo é grande demais (o limite é 8 MB). Tenta exportar um período menor.");
+      const kind = classifyDocument(mediaType, file);
+      if (!kind) return sendReply("Não consegui abrir esse tipo de planilha. Exporta o extrato em PDF, CSV ou Excel (.xlsx).");
+      document = { buffer: file, kind };
     } else {
-      return sendReply("Ainda não leio esse tipo de arquivo. Pode mandar uma foto do comprovante, um áudio ou escrever o lançamento.");
+      return sendReply("Ainda não leio esse tipo de arquivo. Pode mandar uma foto do comprovante, um áudio, um extrato em PDF/CSV/Excel ou escrever o lançamento.");
     }
   }
 
-  if (!text && !receipt) {
+  if (!text && !receipt && !document) {
     return sendReply("Não recebi nenhum texto ou áudio para interpretar.");
   }
 
@@ -221,20 +255,107 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
   // falls through to normal processing below.
   const pending = await prisma.pendingConfirmation.findUnique({ where: { userId: user.id } });
   if (pending) {
-    const isFresh = Date.now() - pending.createdAt.getTime() <= PENDING_CONFIRMATION_TTL_MS;
-    await prisma.pendingConfirmation.delete({ where: { userId: user.id } });
+    const isImport = pending.action === "IMPORT_STATEMENT";
+    const isFresh = Date.now() - pending.createdAt.getTime() <= (isImport ? IMPORT_PENDING_TTL_MS : PENDING_CONFIRMATION_TTL_MS);
+    const confirmed = isFresh && CONFIRM_RE.test(text);
+    const cancelled = isFresh && CANCEL_RE.test(text);
 
-    if (isFresh && CONFIRM_RE.test(text)) {
+    // A statement waiting for its yes/no stays waiting through unrelated
+    // messages (it took real work to read). Any other confirmation is dropped
+    // by whatever else the user says, and the message is processed normally.
+    if (confirmed || cancelled || !(isImport && isFresh)) {
+      await prisma.pendingConfirmation.delete({ where: { userId: user.id } });
+    }
+
+    if (confirmed) {
+      if (isImport) {
+        const result = await commitImport(pending.payload as unknown as StagedImport, user);
+        const ignored = result.skipped > 0 ? " (" + result.skipped + " já estavam registrados)" : "";
+        return sendReply("✅ Importei " + result.imported + " lançamentos" + ignored + ". Se algo ficou errado, mande \"desfazer importação\".");
+      }
+      if (pending.action === "UNDO_IMPORT") {
+        const { batchId } = pending.payload as unknown as { batchId: string };
+        const removed = await undoImport(batchId, user.workspaceId);
+        return sendReply("Pronto, desfiz a importação: " + removed + " lançamentos removidos.");
+      }
       const payload = pending.payload as unknown as DeleteTransactionPayload;
       const result = await deleteTransaction(payload.transactionId, user.workspaceId);
-      const suffix = result.count > 1 ? ` (${result.count} parcelas removidas)` : "";
-      return sendReply(`Removido: ${payload.description} — R$ ${payload.amount.toFixed(2)}.${suffix}`);
+      const suffix = result.count > 1 ? " (" + result.count + " parcelas removidas)" : "";
+      return sendReply("Removido: " + payload.description + " — R$ " + payload.amount.toFixed(2) + "." + suffix);
     }
-    if (isFresh && CANCEL_RE.test(text)) {
-      return sendReply("Tudo bem, não apaguei nada.");
+    if (cancelled) {
+      return sendReply(
+        isImport
+          ? "Importação cancelada, nada foi lançado."
+          : pending.action === "UNDO_IMPORT"
+            ? "Tudo bem, mantive tudo como está."
+            : "Tudo bem, não apaguei nada.",
+      );
     }
-    // Ambiguous reply or a stale (>5min) confirmation — drop it silently and
-    // keep processing this message as a new, unrelated command.
+  }
+
+  if (document) {
+    const file = document;
+    // Twilio waits ~15 seconds for the webhook, and reading a long statement
+    // takes longer — so answer now and send the result as its own message.
+    await sendReply("📄 Recebi o arquivo. Estou lendo, já te mando o resumo.");
+    const deliver = (message: string) => sendWhatsapp(from, message);
+
+    void (async () => {
+      try {
+        const result = await readAndStageDocument(file.buffer, file.kind, text, user);
+
+        if (result.kind === "empty") {
+          return await deliver("Não encontrei lançamentos nesse arquivo.");
+        }
+
+        if (result.kind === "single") {
+          // One entry (e.g. a receipt exported as PDF): register it like a typed message.
+          const { line, accountMention } = result;
+          const day = parseDay(line.data);
+          const today = todayInBrazil();
+          const dateOk = day && day <= addDays(today, 1) && day >= subDays(today, 400);
+          const accountName = (await findAccountByMention(text, user.workspaceId))
+            ? text
+            : accountMention && (await findAccountByMention(accountMention, user.workspaceId))
+              ? accountMention
+              : null;
+          const extraction: Extraction = {
+            tipo: line.tipo === "RECEITA" ? "RECEITA" : "DESPESA",
+            valor: Math.abs(line.valor),
+            categoria: line.categoria,
+            subcategoria: line.subcategoria,
+            descricao: line.descricao,
+            estabelecimento: line.estabelecimento,
+            conta: accountName,
+            data_relativa: dateOk ? line.data : "hoje",
+            recorrente: false,
+            parcelado: false,
+            numero_parcelas: null,
+            confianca: 0.9,
+            pergunta_esclarecimento: null,
+          };
+          const words = [text, line.estabelecimento, line.descricao].filter(Boolean).join(" ");
+          const when = format(resolveDate(extraction.data_relativa, new Date()), "dd/MM/yyyy");
+          const note = "\n📄 Li do arquivo" + (line.estabelecimento ? ": " + line.estabelecimento : "") + " · " + when;
+          return await registerAndReply(extraction, words, "file", note, deliver);
+        }
+
+        // Nothing new to import (everything is already registered): just report it.
+        if (result.staged.items.some((i) => !i.duplicate)) {
+          await setPending(user.id, "IMPORT_STATEMENT", result.staged);
+        }
+        await deliver(summarizeStaged(result.staged));
+      } catch (err) {
+        console.error("Error importing document:", err);
+        await deliver(
+          err instanceof FriendlyError
+            ? err.message
+            : "Não consegui ler esse arquivo. Pode mandar de novo, ou me dizer os lançamentos em texto?",
+        ).catch(() => {});
+      }
+    })();
+    return;
   }
 
   if (receipt) {
@@ -256,6 +377,13 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
     return registerAndReply(extraction, words, "photo", note);
   }
 
+  if (UNDO_IMPORT_RE.test(text)) {
+    const batch = await latestImportBatch(user.workspaceId);
+    if (!batch) return sendReply("Não encontrei nenhuma importação para desfazer.");
+    await setPending(user.id, "UNDO_IMPORT", batch);
+    return sendReply("Confirma desfazer a última importação (" + batch.count + " lançamentos)? Responda SIM para confirmar ou NÃO para cancelar.");
+  }
+
   if (DELETE_LAST_RE.test(text)) {
     const last = await getLastTransaction(user.id, user.workspaceId);
     if (!last) return sendReply("Não encontrei nenhum lançamento recente para apagar.");
@@ -267,9 +395,7 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
       description: installments ? last.description.replace(/\s*\(parcela \d+\/\d+\)$/, "") : last.description,
       amount: Number(last.amount) * (installments ?? 1),
     };
-    await prisma.pendingConfirmation.create({
-      data: { userId: user.id, action: "DELETE_TRANSACTION", payload },
-    });
+    await setPending(user.id, "DELETE_TRANSACTION", payload);
     const installmentNote = installments ? ` (compra parcelada em ${installments}x)` : "";
     return sendReply(
       `Confirma apagar "${payload.description}" — R$ ${payload.amount.toFixed(2)}${installmentNote}? Responda SIM para confirmar ou NÃO para cancelar.`,

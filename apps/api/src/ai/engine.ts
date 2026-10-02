@@ -6,10 +6,12 @@ import {
   QuerySchema,
   BillSchema,
   BillPaymentSchema,
+  StatementSchema,
   type Extraction,
   type Query,
   type BillExtraction,
   type BillPayment,
+  type Statement,
 } from "./schema";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -122,6 +124,63 @@ comprovante de PIX ou transferencia, recibo), nao uma mensagem de texto. Leia a 
   valor null e explique em "pergunta_esclarecimento" o que nao deu para ler.
 - Se a legenda do usuario trouxer conta, categoria ou parcelas, respeite-a.
 - A foto pode estar torta, amassada ou cortada: se tiver duvida real sobre o total, baixe a confianca (<0.7).`;
+
+const STATEMENT_RULES = String.raw`Voce le o TEXTO de um documento financeiro brasileiro (extrato de conta, fatura de cartao, planilha exportada do banco
+ou comprovante em PDF) e lista CADA lancamento que ele contem, sem inventar nenhum.
+- Numeros brasileiros: 1.234,56 = mil duzentos e trinta e quatro reais e cinquenta e seis centavos. "valor" e sempre
+  positivo; o sinal vira o "tipo".
+- Datas: dd/mm/aaaa ou dd/mm (ou ja em ISO). Sem ano, deduza pelo periodo do cabecalho; nunca no futuro; sem pista, o ano atual.
+  Responda "data" em YYYY-MM-DD.
+- EXTRATO de conta: saidas/debitos/negativos = DESPESA; entradas/creditos/positivos = RECEITA. PIX enviado e DESPESA,
+  PIX recebido e RECEITA; transferencias tambem (categoria de Bancos e Transferencias).
+- FATURA de cartao: compras, IOF, juros, anuidade = DESPESA. "Pagamento recebido"/"pagamento da fatura" = PAGAMENTO_FATURA.
+  Estorno/credito/reembolso = RECEITA (categoria Reembolso).
+- Linhas que NAO sao lancamentos (saldo anterior, saldo do dia, total, subtotal, limite, resumo, cabecalhos, rodapes,
+  numeros de pagina) devem ser OMITIDAS.
+- Compra parcelada aparece como "Parcela 2/5", "2/5" ou "(2/5)": preencha parcela_atual e parcela_total e tire isso da descricao.
+- "estabelecimento": nome limpo de quem recebeu/enviou (ex: "Padaria Pao Quente"), sem codigos de filial nem CNPJ.
+- Escolha categoria/subcategoria da lista cadastrada quando houver encaixe claro; prefira a mais especifica e evite "Outros".
+- "conta": o banco ou cartao citado no cabecalho do documento (ex: "Nubank", "Itau"), se houver.
+- "tipo_documento": EXTRATO_CONTA, FATURA_CARTAO, COMPROVANTE (um unico comprovante) ou OUTRO.`;
+
+/** Reads one chunk of a document's text into entries; header is the start of the document, for context. */
+export async function extractStatementChunk(
+  chunk: string,
+  header: string,
+  caption: string,
+  workspaceId: string,
+  today: Date,
+): Promise<Statement> {
+  const categoryPrompt = await buildCategoryPrompt(workspaceId);
+  const iso = today.toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+
+  const completion = await openai.beta.chat.completions.parse({
+    model: "gpt-4o-2024-08-06",
+    messages: [
+      { role: "system", content: STATEMENT_RULES + "\n\nHoje e " + iso + "." + categoryPrompt },
+      {
+        role: "user",
+        content:
+          (caption ? "Legenda do usuario: " + caption + "\n\n" : "") +
+          "Inicio do documento (contexto):\n" + header + "\n\n--- TRECHO A LER ---\n" + chunk,
+      },
+    ],
+    response_format: zodResponseFormat(StatementSchema, "statement"),
+  });
+
+  const parsed = completion.choices[0]?.message?.parsed;
+  if (!parsed) throw new Error("AI did not return a parseable statement");
+  return {
+    ...parsed,
+    conta: nullIfEmpty(parsed.conta),
+    lancamentos: parsed.lancamentos.map((l) => ({
+      ...l,
+      estabelecimento: nullIfEmpty(l.estabelecimento),
+      categoria: nullIfEmpty(l.categoria),
+      subcategoria: nullIfEmpty(l.subcategoria),
+    })),
+  };
+}
 
 export type ReceiptImage = { contentType: string; base64: string };
 

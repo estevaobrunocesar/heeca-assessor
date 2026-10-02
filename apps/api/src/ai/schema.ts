@@ -75,3 +75,24 @@ export const BillPaymentSchema = z.object({
 });
 
 export type BillPayment = z.infer<typeof BillPaymentSchema>;
+
+export const StatementLineSchema = z.object({
+  data: z.string().describe("Entry date as YYYY-MM-DD"),
+  descricao: z.string().describe("Description as written in the document, without the installment suffix"),
+  estabelecimento: z.string().nullable().describe("Merchant or counterparty name, without branch codes or CNPJ"),
+  valor: z.number().describe("Absolute amount in BRL, always positive"),
+  tipo: z.enum(["DESPESA", "RECEITA", "PAGAMENTO_FATURA", "IGNORAR"]),
+  categoria: z.string().nullable(),
+  subcategoria: z.string().nullable(),
+  parcela_atual: z.number().nullable().describe("Installment number when the line shows e.g. 'Parcela 2/5' or '2/5'"),
+  parcela_total: z.number().nullable(),
+});
+
+export const StatementSchema = z.object({
+  tipo_documento: z.enum(["EXTRATO_CONTA", "FATURA_CARTAO", "COMPROVANTE", "OUTRO"]),
+  conta: z.string().nullable().describe("Bank or card named in the document header, if any"),
+  lancamentos: z.array(StatementLineSchema),
+});
+
+export type StatementLine = z.infer<typeof StatementLineSchema>;
+export type Statement = z.infer<typeof StatementSchema>;
