@@ -10,6 +10,7 @@ const TYPE_LABEL: Record<string, string> = {
   CASH: "Dinheiro",
   CREDIT_CARD: "Cartão de crédito",
   INVESTMENT: "Investimentos",
+  COFRINHO: "Cofrinho",
 };
 
 export function NewAccountForm({ action }: { action: (formData: FormData) => void }) {

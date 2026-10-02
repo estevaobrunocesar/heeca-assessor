@@ -2,7 +2,6 @@ export type Bank = { name: string; domain: string; color: string };
 
 export const BANKS: Bank[] = [
   { name: "Nubank", domain: "nubank.com.br", color: "#8A05BE" },
-  { name: "Cofrinho (Nubank)", domain: "nubank.com.br", color: "#820AD1" },
   { name: "Itaú", domain: "itau.com.br", color: "#EC7000" },
   { name: "Bradesco", domain: "bradesco.com.br", color: "#CC092F" },
   { name: "Santander", domain: "santander.com.br", color: "#EC0000" },

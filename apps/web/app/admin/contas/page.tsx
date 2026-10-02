@@ -8,7 +8,7 @@ type Account = {
   id: string;
   name: string;
   bank: string | null;
-  type: "CHECKING" | "SAVINGS" | "DIGITAL" | "CASH" | "CREDIT_CARD" | "INVESTMENT";
+  type: "CHECKING" | "SAVINGS" | "DIGITAL" | "CASH" | "CREDIT_CARD" | "INVESTMENT" | "COFRINHO";
   isDefault: boolean;
   balance: number;
   creditLimit: number | null;
@@ -22,6 +22,7 @@ const TYPE_LABEL: Record<Account["type"], string> = {
   CASH: "Dinheiro",
   CREDIT_CARD: "Cartão de crédito",
   INVESTMENT: "Investimentos",
+  COFRINHO: "Cofrinho",
 };
 
 function formatBRL(value: number) {

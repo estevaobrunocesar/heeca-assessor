@@ -32,6 +32,7 @@ enum AccountType {
   CASH
   CREDIT_CARD
   INVESTMENT
+  COFRINHO
 }
 
 enum TransactionStatus {

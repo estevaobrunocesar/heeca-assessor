@@ -38,6 +38,7 @@ const TYPE_KEYWORDS: [RegExp, string][] = [
   [/dinheiro|especie/, "CASH"],
   [/investiment/, "INVESTMENT"],
   [/digital/, "DIGITAL"],
+  [/cofrinho/, "COFRINHO"],
 ];
 
 /**
