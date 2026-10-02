@@ -204,6 +204,19 @@ model Transaction {
   aiLogs          AiInteractionLog[]
 }
 
+// One row per inbound Twilio message (keyed by their MessageSid), written
+// before any processing starts. Twilio retries a webhook delivery whenever
+// it doesn't get a timely 2xx — without this, a retry would re-run the AI
+// extraction and register the transaction a second time. `reply` is filled
+// in once we know the response, so a retry gets the original answer back
+// instead of silently doing nothing (which would make Twilio retry forever).
+model WebhookEvent {
+  id         String   @id @default(uuid())
+  messageSid String   @unique
+  reply      String?
+  createdAt  DateTime @default(now())
+}
+
 model AiInteractionLog {
   id              String       @id @default(uuid())
   workspaceId     String?

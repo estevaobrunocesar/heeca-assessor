@@ -26,6 +26,13 @@ export async function handleIncomingWhatsapp(req: Request, res: Response) {
     await processIncomingWhatsapp(req, res);
   } catch (err) {
     console.error("Error handling WhatsApp webhook:", err);
+    // The dedupe row was already claimed before processing failed, with no
+    // reply stored — clear it so a genuine Twilio retry can reprocess the
+    // message instead of getting stuck echoing "processando" forever.
+    const messageSid = req.body.MessageSid as string | undefined;
+    if (messageSid) {
+      await prisma.webhookEvent.delete({ where: { messageSid } }).catch(() => {});
+    }
     reply(res, "Deu um erro aqui do meu lado processando sua mensagem. Pode tentar de novo em instantes?");
   }
 }
@@ -34,10 +41,35 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
   const from = req.body.From as string;
   const body = (req.body.Body as string | undefined)?.trim() ?? "";
   const mediaUrl = req.body.MediaUrl0 as string | undefined;
+  const messageSid = req.body.MessageSid as string | undefined;
+
+  // Twilio retries a webhook delivery whenever it doesn't get a timely 2xx
+  // response (slow request, transient 5xx, network blip) — using the SAME
+  // MessageSid. Without this check, a retry would re-run the AI extraction
+  // and register the transaction a second time. Claiming the row here, before
+  // any real work starts, makes a duplicate delivery a no-op instead.
+  if (messageSid) {
+    try {
+      await prisma.webhookEvent.create({ data: { messageSid } });
+    } catch (err: any) {
+      if (err?.code === "P2002") {
+        const existing = await prisma.webhookEvent.findUnique({ where: { messageSid } });
+        return reply(res, existing?.reply ?? "Já recebi essa mensagem e estou processando — um instante.");
+      }
+      throw err;
+    }
+  }
+
+  async function sendReply(message: string) {
+    if (messageSid) {
+      await prisma.webhookEvent.update({ where: { messageSid }, data: { reply: message } }).catch(() => {});
+    }
+    reply(res, message);
+  }
 
   const user = await findUserByPhone(from);
   if (!user) {
-    return reply(res, "Esse número não está cadastrado como usuário do assessor financeiro. Peça ao administrador para te cadastrar.");
+    return sendReply("Esse número não está cadastrado como usuário do assessor financeiro. Peça ao administrador para te cadastrar.");
   }
 
   let text = body;
@@ -53,40 +85,39 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
   }
 
   if (!text) {
-    return reply(res, "Não recebi nenhum texto ou áudio para interpretar.");
+    return sendReply("Não recebi nenhum texto ou áudio para interpretar.");
   }
 
   if (DELETE_LAST_RE.test(text)) {
     const last = await getLastTransaction(user.id, user.workspaceId);
-    if (!last) return reply(res, "Não encontrei nenhum lançamento recente para apagar.");
+    if (!last) return sendReply("Não encontrei nenhum lançamento recente para apagar.");
     const result = await deleteTransaction(last.id, user.workspaceId);
     const suffix = result.count > 1 ? ` (${result.count} parcelas removidas)` : "";
-    return reply(res, `Removido: ${last.description} — R$ ${Number(last.amount).toFixed(2)}.${suffix}`);
+    return sendReply(`Removido: ${last.description} — R$ ${Number(last.amount).toFixed(2)}.${suffix}`);
   }
 
   const fixAmountMatch = text.match(FIX_AMOUNT_RE);
   if (fixAmountMatch) {
     const last = await getLastTransaction(user.id, user.workspaceId);
-    if (!last) return reply(res, "Não encontrei nenhum lançamento recente para corrigir.");
+    if (!last) return sendReply("Não encontrei nenhum lançamento recente para corrigir.");
     const amount = Number(fixAmountMatch[3].replace(".", "").replace(",", "."));
     await updateTransactionAmount(last.id, user.workspaceId, amount);
-    return reply(res, `Valor corrigido para R$ ${amount.toFixed(2)}.`);
+    return sendReply(`Valor corrigido para R$ ${amount.toFixed(2)}.`);
   }
 
   const fixCategoryMatch = text.match(FIX_CATEGORY_RE);
   if (fixCategoryMatch) {
     const last = await getLastTransaction(user.id, user.workspaceId);
-    if (!last) return reply(res, "Não encontrei nenhum lançamento recente para corrigir.");
+    if (!last) return sendReply("Não encontrei nenhum lançamento recente para corrigir.");
     const categoryName = fixCategoryMatch[4].trim();
     await updateTransactionCategory(last.id, user.workspaceId, categoryName);
-    return reply(res, `Categoria corrigida para ${categoryName}.`);
+    return sendReply(`Categoria corrigida para ${categoryName}.`);
   }
 
   if (QUERY_MONTH_RE.test(text)) {
     const summary = await getMonthSummary(new Date(), user.workspaceId, user.id);
     const topLine = summary.topCategories[0] ? `Maior gasto: ${summary.topCategories[0].name} — R$ ${summary.topCategories[0].total.toFixed(2)}.` : "";
-    return reply(
-      res,
+    return sendReply(
       `📊 Este mês:\nReceitas: R$ ${summary.income.toFixed(2)}\nDespesas: R$ ${summary.expense.toFixed(2)}\nResultado: R$ ${summary.result.toFixed(2)}\n${topLine}`,
     );
   }
@@ -118,7 +149,7 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
   });
 
   if (result.kind === "needs_clarification") {
-    return reply(res, result.question);
+    return sendReply(result.question);
   }
 
   const emoji = extraction.tipo === "RECEITA" ? "💰" : "💸";
@@ -138,8 +169,7 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
     alertLine = (await checkBudgetAlert(user.workspaceId, result.categoryId, amountThisMonth)) ?? "";
   }
 
-  return reply(
-    res,
+  return sendReply(
     `${emoji} Anotado!\nR$ ${result.amount.toFixed(2)}\nCategoria: ${categoryLine}\nDescrição: ${extraction.descricao}${accountLine}${installmentLine}${alertLine}`,
   );
 }
