@@ -11,6 +11,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { apiFetch } from "../../../lib/api";
+import { ConfirmButton } from "../../components/ConfirmButton";
 
 type Category = {
   id: string;
@@ -32,6 +33,29 @@ const ICONS: Record<string, typeof Tag> = {
 async function getCategories(): Promise<Category[]> {
   const res = await apiFetch("/api/categories");
   return res.json();
+}
+
+type KeywordRule = { id: string; keyword: string; source: "MANUAL" | "LEARNED"; category: string | null };
+
+async function getKeywordRules(): Promise<KeywordRule[]> {
+  const res = await apiFetch("/api/category-keywords");
+  if (!res.ok) return [];
+  return res.json();
+}
+
+async function addKeywordRule(formData: FormData) {
+  "use server";
+  await apiFetch("/api/category-keywords", {
+    method: "POST",
+    body: JSON.stringify({ keyword: formData.get("keyword"), categoryId: formData.get("categoryId") }),
+  });
+  revalidatePath("/admin/categorias");
+}
+
+async function deleteKeywordRule(formData: FormData) {
+  "use server";
+  await apiFetch(`/api/category-keywords/${formData.get("id")}`, { method: "DELETE" });
+  revalidatePath("/admin/categorias");
 }
 
 async function createCategory(formData: FormData) {
@@ -56,7 +80,7 @@ async function deleteCategory(formData: FormData) {
 }
 
 export default async function CategoriesAdminPage() {
-  const categories = await getCategories();
+  const [categories, rules] = await Promise.all([getCategories(), getKeywordRules()]);
   const expenseCategories = categories.filter((c) => c.type === "EXPENSE");
   const incomeCategories = categories.filter((c) => c.type === "INCOME");
 
@@ -145,6 +169,65 @@ export default async function CategoriesAdminPage() {
             </form>
           </div>
         ))}
+      </div>
+
+      <h2 style={{ fontSize: 15, marginTop: 36, color: "var(--muted)" }}>Regras de categoria</h2>
+      <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 4, maxWidth: 640 }}>
+        Quando uma palavra aparece na mensagem, o lançamento vai direto para a categoria escolhida, antes do palpite da IA.
+        Quando você corrige uma categoria pelo WhatsApp, o assistente cria a regra sozinho.
+      </p>
+      <div className="card" style={{ padding: 18, marginTop: 12 }}>
+        <form action={addKeywordRule} style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <input name="keyword" placeholder="Palavra ou loja (ex: pizza, Uber)" required className="field" style={{ flex: "1 1 200px" }} />
+          <select name="categoryId" required defaultValue="" className="field" style={{ flex: "1 1 240px" }}>
+            <option value="" disabled>
+              Categoria
+            </option>
+            {categories.map((c) => (
+              <optgroup key={c.id} label={c.name}>
+                <option value={c.id}>{c.name}</option>
+                {c.children.map((ch) => (
+                  <option key={ch.id} value={ch.id}>
+                    {ch.name}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+          <button type="submit" className="btn btn-primary">
+            Adicionar regra
+          </button>
+        </form>
+        {rules.length > 0 && (
+          <table style={{ marginTop: 14 }}>
+            <thead>
+              <tr>
+                <th>Palavra</th>
+                <th>Categoria</th>
+                <th>Origem</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {rules.map((r) => (
+                <tr key={r.id}>
+                  <td style={{ fontWeight: 500 }}>{r.keyword}</td>
+                  <td style={{ color: "var(--muted)" }}>{r.category ?? "—"}</td>
+                  <td>
+                    <span className={`pill ${r.source === "LEARNED" ? "pill-green" : "pill-muted"}`}>
+                      {r.source === "LEARNED" ? "Aprendida" : "Manual"}
+                    </span>
+                  </td>
+                  <td style={{ textAlign: "right" }}>
+                    <ConfirmButton action={deleteKeywordRule} id={r.id} title="Apagar regra" message={`Apagar a regra "${r.keyword}"?`}>
+                      <Trash2 size={15} />
+                    </ConfirmButton>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       <div className="card" style={{ padding: 18, marginTop: 32, maxWidth: 560 }}>

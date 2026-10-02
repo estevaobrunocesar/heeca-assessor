@@ -20,7 +20,10 @@ function reply(res: Response, message: string) {
 
 const DELETE_LAST_RE = /apag(a|ar) o (último|ultimo) lan[cç]amento/i;
 const FIX_AMOUNT_RE = /corrig(e|ir) o (último|ultimo) (lan[cç]amento )?para (?:r\$ ?)?([\d.,]+)/i;
-const FIX_CATEGORY_RE = /(muda|corrige|mude) (a )?categoria (do último|do ultimo|pra|para) (.+)/i;
+// "muda a categoria (do último [lançamento]) pra/para X" — the optional
+// "do último" clause is consumed before pra/para so it never leaks into X.
+const FIX_CATEGORY_RE =
+  /(?:muda|mude|corrige|corrija|altera|troca)\s+(?:a\s+)?categoria\s+(?:d[oe]\s+(?:[úu]ltimo|ultimo)(?:\s+(?:lan[cç]amento|gasto))?\s+)?(?:pra|para|de)\s+(.+)/i;
 const CONFIRM_RE = /^(sim|confirmo|confirmar|pode|ok|isso)\b/i;
 const CANCEL_RE = /^(n[aã]o|cancela|cancelar)\b/i;
 const PENDING_CONFIRMATION_TTL_MS = 5 * 60 * 1000;
@@ -149,9 +152,10 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
   if (fixCategoryMatch) {
     const last = await getLastTransaction(user.id, user.workspaceId);
     if (!last) return sendReply("Não encontrei nenhum lançamento recente para corrigir.");
-    const categoryName = fixCategoryMatch[4].trim();
-    await updateTransactionCategory(last.id, user.workspaceId, categoryName);
-    return sendReply(`Categoria corrigida para ${categoryName}.`);
+    const categoryName = fixCategoryMatch[1].trim().replace(/[.!?]+$/, "");
+    const fixed = await updateTransactionCategory(last.id, user.workspaceId, categoryName);
+    const learned = fixed.learnedKeyword ? `\nVou lembrar: "${fixed.learnedKeyword}" → ${fixed.label}.` : "";
+    return sendReply(`Categoria corrigida para ${fixed.label}.${learned}`);
   }
 
   if (isInvoiceQuery(text)) {
@@ -217,9 +221,9 @@ O limite do cartão foi atualizado.`);
 
   const emoji = extraction.tipo === "RECEITA" ? "💰" : "💸";
   const accountLine = result.accountName ? `\nConta: ${result.accountName}` : "";
-  const categoryLine = extraction.subcategoria
-    ? `${extraction.categoria} > ${extraction.subcategoria}`
-    : extraction.categoria;
+  // The category actually stored, which a learned/known keyword may have
+  // chosen over what the AI named.
+  const categoryLine = result.categoryLabel ?? extraction.categoria;
   const installmentLine = result.installments
     ? `\nParcelado em ${result.installments.total}x de R$ ${result.installments.amountEach.toFixed(2)}`
     : "";

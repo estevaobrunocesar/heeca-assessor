@@ -41,6 +41,11 @@ enum BillStatus {
   CANCELED
 }
 
+enum KeywordSource {
+  MANUAL
+  LEARNED
+}
+
 enum TransactionStatus {
   CONFIRMED
   PENDING_REVIEW
@@ -68,6 +73,7 @@ model Workspace {
   budgets        Budget[]
   recurringRules RecurringRule[]
   bills          Bill[]
+  categoryKeywords CategoryKeyword[]
 }
 
 model User {
@@ -120,6 +126,7 @@ model Category {
   budgets        Budget[]
   recurringRules RecurringRule[]
   bills          Bill[]
+  keywords       CategoryKeyword[]
 
   @@unique([workspaceId, name, parentId])
 }
@@ -201,6 +208,7 @@ model Transaction {
   account         Account?           @relation(fields: [accountId], references: [id])
 
   paymentMethod   String?
+  merchant        String?
   isRecurring     Boolean            @default(false)
   isInstallment   Boolean            @default(false)
   installmentNo   Int?
@@ -215,6 +223,23 @@ model Transaction {
   updatedAt       DateTime           @updatedAt
 
   aiLogs          AiInteractionLog[]
+}
+
+/// A word or phrase that decides a category deterministically, ahead of the
+/// AI's guess. LEARNED rules are written when the user corrects a category;
+/// MANUAL ones are added on the Categorias screen. The keyword is stored
+/// normalized (lowercase, no accents, single spaces) so matching is exact.
+model CategoryKeyword {
+  id          String        @id @default(uuid())
+  workspaceId String
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id])
+  keyword     String
+  categoryId  String
+  category    Category      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  source      KeywordSource @default(MANUAL)
+  createdAt   DateTime      @default(now())
+
+  @@unique([workspaceId, keyword])
 }
 
 /// A payable not yet paid (rent, utility, boleto). Distinct from a

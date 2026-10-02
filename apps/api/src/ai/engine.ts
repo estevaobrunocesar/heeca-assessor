@@ -29,6 +29,9 @@ Regras:
 - "categoria" deve ser o nome da categoria principal (ex: "Transporte") e "subcategoria" o item especifico
   dentro dela (ex: "Uber"), escolhidos a partir da lista de categorias cadastradas abaixo sempre que a
   mensagem encaixar em alguma. Se nada da lista encaixar bem, pode usar um nome novo e objetivo.
+- "estabelecimento" e a marca, loja ou assunto que melhor identifica o que foi comprado, nas palavras do usuario
+  (ex: "Uber", "pizza", "Mercado Livre", "academia"). Nunca uma palavra generica como "compra" ou "gasto".
+  Null se a mensagem nao nomear nenhum.
 - Se o usuario mencionar um banco, cartao ou conta especifica (ex: "no cartao Nubank", "da conta do Itau"),
   preencha "conta" com esse nome tal como dito. Se nao mencionar nenhuma conta, deixe "conta" como null —
   NAO assuma uma conta padrao, isso e resolvido fora da IA.
@@ -87,6 +90,7 @@ export async function extractTransaction(message: string, workspaceId: string): 
     ...parsed,
     categoria: nullIfEmpty(parsed.categoria),
     subcategoria: nullIfEmpty(parsed.subcategoria),
+    estabelecimento: nullIfEmpty(parsed.estabelecimento),
     conta: nullIfEmpty(parsed.conta),
     pergunta_esclarecimento: nullIfEmpty(parsed.pergunta_esclarecimento),
   };

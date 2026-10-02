@@ -11,6 +11,12 @@ export const ExtractionSchema = z.object({
   categoria: z.string().nullable(),
   subcategoria: z.string().nullable(),
   descricao: z.string(),
+  estabelecimento: z
+    .string()
+    .nullable()
+    .describe(
+      "The merchant, brand or subject that best identifies what was bought, in the user's own words (e.g. 'Uber', 'pizza', 'Mercado Livre', 'academia'). Never a generic word like 'compra' or 'gasto'. null if the message names none.",
+    ),
   conta: z
     .string()
     .nullable()

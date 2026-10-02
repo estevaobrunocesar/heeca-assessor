@@ -1,6 +1,7 @@
 import { startOfDay, endOfDay, format } from "date-fns";
 import { interpretQuery } from "../ai/engine";
-import { findCategoryScope } from "../financial/categories";
+import { findCategoryScope, scopeOfCategory } from "../financial/categories";
+import { matchKeywordRule } from "../financial/keywords";
 import { findAccountByMention } from "../financial/accounts";
 import { getPeriodReport } from "../financial/queries";
 
@@ -29,7 +30,13 @@ export async function answerFinanceQuery(
   if (from > to) [from, to] = [to, from];
 
   let scope: Awaited<ReturnType<typeof findCategoryScope>> = null;
-  if (q.categoria || q.subcategoria) {
+  // A keyword the user taught (or a well-known merchant) in the question
+  // decides the category, so "quanto gastei com pizza?" looks where pizza
+  // entries were actually filed rather than where the AI guesses.
+  const rule = await matchKeywordRule(text, user.workspaceId);
+  if (rule) {
+    scope = await scopeOfCategory(rule.category);
+  } else if (q.categoria || q.subcategoria) {
     scope = await findCategoryScope(q.categoria, q.subcategoria, user.workspaceId);
     if (!scope) return `Não encontrei a categoria "${q.subcategoria ?? q.categoria}" entre as suas categorias.`;
   }

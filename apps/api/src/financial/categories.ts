@@ -84,3 +84,74 @@ export async function findCategoryScope(categoria: string | null, subcategoria: 
 
   return null;
 }
+
+/**
+ * Lookup-only: the category with exactly this name (and parent name, when
+ * given) in the workspace, or null. Used by keyword rules, which must never
+ * create categories.
+ */
+export async function findCategoryByNames(
+  categoria: string,
+  subcategoria: string | null,
+  workspaceId: string,
+  type?: TransactionType,
+) {
+  const all = await prisma.category.findMany({
+    where: { workspaceId, ...(type ? { type } : {}) },
+    include: { parent: true },
+  });
+  const catNeedle = normalize(categoria);
+
+  if (subcategoria) {
+    const subNeedle = normalize(subcategoria);
+    return all.find((c) => c.parent && normalize(c.name) === subNeedle && normalize(c.parent.name) === catNeedle) ?? null;
+  }
+  return all.find((c) => !c.parent && normalize(c.name) === catNeedle) ?? null;
+}
+
+/**
+ * For a category the user named on its own ("muda a categoria para
+ * Delivery"): a top-level category if one has that name, otherwise a
+ * subcategory with it anywhere. Only creates a new top-level category when
+ * the name exists nowhere — resolveCategory(name, null) would have created
+ * a loose duplicate top-level "Delivery" next to Alimentação > Delivery.
+ */
+export async function resolveCategoryByName(name: string, type: TransactionType, workspaceId: string) {
+  // "Alimentação > Mercado": parent and child named together.
+  const parts = name.split(/\s*[>/]\s*/).filter(Boolean);
+  if (parts.length === 2) {
+    const exact = await findCategoryByNames(parts[0], parts[1], workspaceId, type);
+    if (exact) return exact;
+  }
+
+  const all = await prisma.category.findMany({ where: { workspaceId, type }, include: { parent: true } });
+  const needle = normalize(name);
+
+  const topLevel = all.find((c) => !c.parentId && normalize(c.name) === needle);
+  if (topLevel) return topLevel;
+  const sub = all.find((c) => c.parentId && normalize(c.name) === needle);
+  if (sub) return sub;
+
+  const created = await prisma.category.create({ data: { name: name.trim(), type, workspaceId }, include: { parent: true } });
+  return created;
+}
+
+/** "Parent > Child" for a subcategory, just the name for a top-level one. */
+export async function categoryLabel(
+  category: { name: string; parentId?: string | null; parent?: { name: string } | null } | null,
+): Promise<string | null> {
+  if (!category) return null;
+  if (category.parent) return `${category.parent.name} > ${category.name}`;
+  if (category.parentId) {
+    const parent = await prisma.category.findUnique({ where: { id: category.parentId } });
+    if (parent) return `${parent.name} > ${category.name}`;
+  }
+  return category.name;
+}
+
+/** The ids a report should filter by for one category: itself if it is a subcategory, or itself plus its subcategories. */
+export async function scopeOfCategory(category: { id: string; name: string; parent?: { name: string } | null }) {
+  if (category.parent) return { ids: [category.id], label: category.name, isParent: false };
+  const children = await prisma.category.findMany({ where: { parentId: category.id }, select: { id: true } });
+  return { ids: [category.id, ...children.map((c) => c.id)], label: category.name, isParent: true };
+}

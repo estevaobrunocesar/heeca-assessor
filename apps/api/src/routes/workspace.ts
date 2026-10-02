@@ -8,7 +8,7 @@ export const workspaceRouter = Router();
 workspaceRouter.get("/export", requireAdmin, async (req, res) => {
   const workspaceId = req.auth!.workspaceId;
 
-  const [workspace, users, accounts, categories, transactions, budgets, recurringRules, bills] = await Promise.all([
+  const [workspace, users, accounts, categories, transactions, budgets, recurringRules, bills, categoryKeywords] = await Promise.all([
     prisma.workspace.findUniqueOrThrow({ where: { id: workspaceId } }),
     prisma.user.findMany({
       where: { workspaceId },
@@ -20,10 +20,11 @@ workspaceRouter.get("/export", requireAdmin, async (req, res) => {
     prisma.budget.findMany({ where: { workspaceId } }),
     prisma.recurringRule.findMany({ where: { workspaceId } }),
     prisma.bill.findMany({ where: { workspaceId } }),
+    prisma.categoryKeyword.findMany({ where: { workspaceId } }),
   ]);
 
   res.setHeader("Content-Disposition", `attachment; filename="meu-assessor-export-${workspaceId}.json"`);
-  res.json({ exportedAt: new Date().toISOString(), workspace, users, accounts, categories, transactions, budgets, recurringRules, bills });
+  res.json({ exportedAt: new Date().toISOString(), workspace, users, accounts, categories, transactions, budgets, recurringRules, bills, categoryKeywords });
 });
 
 /**
@@ -45,6 +46,7 @@ workspaceRouter.delete("/", requireAdmin, async (req, res) => {
     prisma.transaction.deleteMany({ where: { workspaceId } }),
     prisma.recurringRule.deleteMany({ where: { workspaceId } }),
     prisma.bill.deleteMany({ where: { workspaceId } }),
+    prisma.categoryKeyword.deleteMany({ where: { workspaceId } }),
     prisma.budget.deleteMany({ where: { workspaceId } }),
     prisma.account.deleteMany({ where: { workspaceId } }),
     prisma.category.deleteMany({ where: { workspaceId } }),

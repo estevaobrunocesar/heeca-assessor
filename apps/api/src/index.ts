@@ -13,6 +13,7 @@ import { budgetsRouter } from "./routes/budgets";
 import { recurringRouter } from "./routes/recurring";
 import { invoicesRouter } from "./routes/invoices";
 import { billsRouter } from "./routes/bills";
+import { categoryKeywordsRouter } from "./routes/categoryKeywords";
 import { workspaceRouter } from "./routes/workspace";
 import { authRouter } from "./routes/auth";
 import { requireAuth } from "./auth/middleware";
@@ -53,6 +54,7 @@ app.use("/api/budgets", requireAuth, budgetsRouter);
 app.use("/api/recurring", requireAuth, recurringRouter);
 app.use("/api/invoices", requireAuth, invoicesRouter);
 app.use("/api/bills", requireAuth, billsRouter);
+app.use("/api/category-keywords", requireAuth, categoryKeywordsRouter);
 app.use("/api/workspace", requireAuth, workspaceRouter);
 
 const port = process.env.PORT ?? 3001;

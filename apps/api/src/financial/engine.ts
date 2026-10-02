@@ -2,7 +2,8 @@ import { prisma } from "../db/client";
 import { addMonths } from "date-fns";
 import type { Extraction } from "../ai/schema";
 import { resolveDate } from "./resolveDate";
-import { resolveCategory } from "./categories";
+import { resolveCategory, resolveCategoryByName, categoryLabel } from "./categories";
+import { matchKeywordRule, saveKeyword } from "./keywords";
 import { shouldAutoConfirm } from "./confidence";
 import { findAccountByMention, getDefaultAccount } from "./accounts";
 import { reopenBillsPaidBy } from "./bills";
@@ -20,6 +21,7 @@ export type RegisterResult =
       transactionId: string;
       accountName: string | null;
       categoryId: string | null;
+      categoryLabel: string | null;
       amount: number;
       type: "INCOME" | "EXPENSE" | "TRANSFER" | "ADJUSTMENT";
       installments: { total: number; amountEach: number } | null;
@@ -36,7 +38,14 @@ export async function registerFromExtraction(params: {
 }): Promise<RegisterResult> {
   const { userId, workspaceId, extraction, origin, originalMessage, receivedAt } = params;
 
-  if (extraction.tipo === "INDEFINIDO" || !shouldAutoConfirm(extraction)) {
+  // A keyword the user taught (or a well-known merchant) decides the category
+  // ahead of the AI's guess, so a correction made once sticks — and it also
+  // answers the AI's "which category?" doubt, so no question is needed.
+  const type = extraction.tipo === "INDEFINIDO" ? null : TIPO_MAP[extraction.tipo];
+  const rule = type && type !== "TRANSFER" ? await matchKeywordRule(originalMessage, workspaceId, type) : null;
+  const ruleDecidesCategory = rule !== null && extraction.valor !== null;
+
+  if (type === null || (!ruleDecidesCategory && !shouldAutoConfirm(extraction))) {
     return {
       kind: "needs_clarification",
       question:
@@ -55,8 +64,7 @@ export async function registerFromExtraction(params: {
     };
   }
 
-  const type = TIPO_MAP[extraction.tipo as keyof typeof TIPO_MAP];
-  const category = await resolveCategory(extraction.categoria, extraction.subcategoria, type, workspaceId);
+  const category = rule?.category ?? (await resolveCategory(extraction.categoria, extraction.subcategoria, type, workspaceId));
   const date = resolveDate(extraction.data_relativa, receivedAt);
 
   // Paying a card's invoice isn't new spending — the purchases were already
@@ -99,6 +107,7 @@ export async function registerFromExtraction(params: {
         date: addMonths(date, i),
         categoryId: category?.id,
         accountId: account?.id,
+        merchant: extraction.estabelecimento,
         isRecurring: extraction.recorrente,
         isInstallment: installmentCount > 1,
         installmentNo: installmentCount > 1 ? i + 1 : undefined,
@@ -117,6 +126,7 @@ export async function registerFromExtraction(params: {
     transactionId: firstTransactionId!,
     accountName: account?.name ?? null,
     categoryId: category?.id ?? null,
+    categoryLabel: await categoryLabel(category),
     amount: extraction.valor!,
     type: storedType,
     installments: installmentCount > 1 ? { total: installmentCount, amountEach: baseAmount } : null,
@@ -170,9 +180,14 @@ export async function updateTransactionAmount(transactionId: string, workspaceId
 
 export async function updateTransactionCategory(transactionId: string, workspaceId: string, categoryName: string) {
   const tx = await prisma.transaction.findFirstOrThrow({ where: { id: transactionId, workspaceId } });
-  const category = await resolveCategory(categoryName, null, tx.type, workspaceId);
-  return prisma.transaction.update({
+  const category = await resolveCategoryByName(categoryName, tx.type, workspaceId);
+  await prisma.transaction.update({
     where: { id: transactionId },
-    data: { categoryId: category?.id },
+    data: { categoryId: category.id },
   });
+
+  // The correction is a lesson: next time this merchant comes up it lands in
+  // the category the user chose, not wherever the AI guesses.
+  const learnedKeyword = tx.merchant ? await saveKeyword(workspaceId, tx.merchant, category.id, "LEARNED") : null;
+  return { label: await categoryLabel(category), learnedKeyword };
 }
