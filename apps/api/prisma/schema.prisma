@@ -141,6 +141,8 @@ model Account {
   type       AccountType @default(CHECKING)
   isDefault  Boolean     @default(false)
   creditLimit Decimal?   @db.Decimal(12, 2) // CREDIT_CARD only: the card's total limit, set manually
+  closingDay Int?
+  dueDay     Int?
   createdAt  DateTime    @default(now())
 
   transactions   Transaction[]

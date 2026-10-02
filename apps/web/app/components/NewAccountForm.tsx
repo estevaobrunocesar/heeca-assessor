@@ -46,6 +46,12 @@ export function NewAccountForm({ action }: { action: (formData: FormData) => voi
           className="field"
         />
       )}
+      {type === "CREDIT_CARD" && (
+        <div style={{ display: "flex", gap: 8 }}>
+          <input name="closingDay" type="number" min="1" max="31" placeholder="Fecha dia" className="field" style={{ flex: 1, minWidth: 0 }} />
+          <input name="dueDay" type="number" min="1" max="31" placeholder="Vence dia" className="field" style={{ flex: 1, minWidth: 0 }} />
+        </div>
+      )}
       <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--muted)" }}>
         <input type="checkbox" name="isDefault" /> Definir como padrão
       </label>

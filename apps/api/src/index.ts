@@ -11,6 +11,7 @@ import { usersRouter } from "./routes/users";
 import { accountsRouter } from "./routes/accounts";
 import { budgetsRouter } from "./routes/budgets";
 import { recurringRouter } from "./routes/recurring";
+import { invoicesRouter } from "./routes/invoices";
 import { workspaceRouter } from "./routes/workspace";
 import { authRouter } from "./routes/auth";
 import { requireAuth } from "./auth/middleware";
@@ -49,6 +50,7 @@ app.use("/api/users", requireAuth, usersRouter);
 app.use("/api/accounts", requireAuth, accountsRouter);
 app.use("/api/budgets", requireAuth, budgetsRouter);
 app.use("/api/recurring", requireAuth, recurringRouter);
+app.use("/api/invoices", requireAuth, invoicesRouter);
 app.use("/api/workspace", requireAuth, workspaceRouter);
 
 const port = process.env.PORT ?? 3001;

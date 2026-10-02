@@ -20,7 +20,7 @@ export type RegisterResult =
       accountName: string | null;
       categoryId: string | null;
       amount: number;
-      type: "INCOME" | "EXPENSE" | "TRANSFER";
+      type: "INCOME" | "EXPENSE" | "TRANSFER" | "ADJUSTMENT";
       installments: { total: number; amountEach: number } | null;
     }
   | { kind: "needs_clarification"; question: string };
@@ -58,6 +58,17 @@ export async function registerFromExtraction(params: {
   const category = await resolveCategory(extraction.categoria, extraction.subcategoria, type, workspaceId);
   const date = resolveDate(extraction.data_relativa, receivedAt);
 
+  // Paying a card's invoice isn't new spending — the purchases were already
+  // counted when made. Stored as a positive adjustment (same as the
+  // statement importer does) so it gives the limit back, and stays out of
+  // both the invoice total and the month's expense figures.
+  const isInvoicePayment =
+    type === "EXPENSE" &&
+    account?.type === "CREDIT_CARD" &&
+    !!category &&
+    /pagamento (de|da) fatura/.test(category.name.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase());
+  const storedType = isInvoicePayment ? ("ADJUSTMENT" as const) : type;
+
   const installmentCount = extraction.parcelado && extraction.numero_parcelas && extraction.numero_parcelas > 1
     ? extraction.numero_parcelas
     : 1;
@@ -81,7 +92,7 @@ export async function registerFromExtraction(params: {
       data: {
         workspaceId,
         userId,
-        type,
+        type: storedType,
         amount,
         description,
         date: addMonths(date, i),
@@ -106,7 +117,7 @@ export async function registerFromExtraction(params: {
     accountName: account?.name ?? null,
     categoryId: category?.id ?? null,
     amount: extraction.valor!,
-    type,
+    type: storedType,
     installments: installmentCount > 1 ? { total: installmentCount, amountEach: baseAmount } : null,
   };
 }

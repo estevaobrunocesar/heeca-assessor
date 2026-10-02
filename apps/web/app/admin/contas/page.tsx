@@ -13,6 +13,8 @@ type Account = {
   balance: number;
   creditLimit: number | null;
   availableLimit: number | null;
+  closingDay: number | null;
+  dueDay: number | null;
 };
 
 const TYPE_LABEL: Record<Account["type"], string> = {
@@ -37,6 +39,8 @@ async function getAccounts(): Promise<Account[]> {
 async function createAccount(formData: FormData) {
   "use server";
   const creditLimit = formData.get("creditLimit");
+  const closingDay = formData.get("closingDay");
+  const dueDay = formData.get("dueDay");
   await apiFetch("/api/accounts", {
     method: "POST",
     body: JSON.stringify({
@@ -45,6 +49,8 @@ async function createAccount(formData: FormData) {
       type: formData.get("type"),
       isDefault: formData.get("isDefault") === "on",
       creditLimit: creditLimit ? Number(creditLimit) : undefined,
+      closingDay: closingDay ? Number(closingDay) : undefined,
+      dueDay: dueDay ? Number(dueDay) : undefined,
     }),
   });
   revalidatePath("/admin/contas");
@@ -66,6 +72,16 @@ async function setCreditLimit(formData: FormData) {
     body: JSON.stringify({ creditLimit: Number(formData.get("creditLimit")) }),
   });
   revalidatePath("/admin/contas");
+}
+
+async function setInvoiceDays(formData: FormData) {
+  "use server";
+  await apiFetch(`/api/accounts/${formData.get("id")}`, {
+    method: "PATCH",
+    body: JSON.stringify({ closingDay: Number(formData.get("closingDay")), dueDay: Number(formData.get("dueDay")) }),
+  });
+  revalidatePath("/admin/contas");
+  revalidatePath("/faturas");
 }
 
 async function adjustBalance(formData: FormData) {
@@ -157,6 +173,17 @@ export default async function AccountsAdminPage() {
                     />
                     <button type="submit" className="btn btn-ghost" style={{ fontSize: 12, padding: "9px 10px" }}>
                       Salvar limite
+                    </button>
+                  </form>
+                )}
+
+                {isCard && (
+                  <form action={setInvoiceDays} style={{ display: "flex", gap: 6 }}>
+                    <input type="hidden" name="id" value={a.id} />
+                    <input name="closingDay" type="number" min="1" max="31" defaultValue={a.closingDay ?? ""} placeholder="Fecha dia" required className="field" style={{ flex: 1, minWidth: 0, fontSize: 13 }} />
+                    <input name="dueDay" type="number" min="1" max="31" defaultValue={a.dueDay ?? ""} placeholder="Vence dia" required className="field" style={{ flex: 1, minWidth: 0, fontSize: 13 }} />
+                    <button type="submit" className="btn btn-ghost" style={{ fontSize: 12, padding: "9px 10px" }}>
+                      Salvar
                     </button>
                   </form>
                 )}

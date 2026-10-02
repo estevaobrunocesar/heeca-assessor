@@ -6,6 +6,11 @@ import type { AccountType } from "@prisma/client";
 
 export const accountsRouter = Router();
 
+// Day-of-month for a card's closing/due date; anything else is ignored.
+function validDay(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 31 ? value : undefined;
+}
+
 accountsRouter.get("/", async (req, res) => {
   const accounts = await prisma.account.findMany({
     where: { workspaceId: req.auth!.workspaceId },
@@ -27,12 +32,14 @@ accountsRouter.get("/", async (req, res) => {
 });
 
 accountsRouter.post("/", requireAdmin, async (req, res) => {
-  const { name, bank, type, isDefault, creditLimit } = req.body as {
+  const { name, bank, type, isDefault, creditLimit, closingDay, dueDay } = req.body as {
     name?: string;
     bank?: string;
     type?: AccountType;
     isDefault?: boolean;
     creditLimit?: number;
+    closingDay?: number;
+    dueDay?: number;
   };
   if (!name) return res.status(400).json({ error: "name is required" });
 
@@ -43,6 +50,8 @@ accountsRouter.post("/", requireAdmin, async (req, res) => {
       type: type ?? "CHECKING",
       workspaceId: req.auth!.workspaceId,
       creditLimit: typeof creditLimit === "number" ? creditLimit : undefined,
+      closingDay: validDay(closingDay),
+      dueDay: validDay(dueDay),
     },
   });
 
@@ -52,19 +61,28 @@ accountsRouter.post("/", requireAdmin, async (req, res) => {
 });
 
 accountsRouter.patch("/:id", requireAdmin, async (req, res) => {
-  const { name, bank, type, isDefault, creditLimit } = req.body as {
+  const { name, bank, type, isDefault, creditLimit, closingDay, dueDay } = req.body as {
     name?: string;
     bank?: string;
     type?: AccountType;
     isDefault?: boolean;
     creditLimit?: number;
+    closingDay?: number;
+    dueDay?: number;
   };
 
   if (isDefault) await setDefaultAccount(req.params.id, req.auth!.workspaceId);
 
   const result = await prisma.account.updateMany({
     where: { id: req.params.id, workspaceId: req.auth!.workspaceId },
-    data: { name, bank, type, creditLimit: typeof creditLimit === "number" ? creditLimit : undefined },
+    data: {
+      name,
+      bank,
+      type,
+      creditLimit: typeof creditLimit === "number" ? creditLimit : undefined,
+      closingDay: validDay(closingDay),
+      dueDay: validDay(dueDay),
+    },
   });
   if (result.count === 0) return res.status(404).json({ error: "Account not found" });
 

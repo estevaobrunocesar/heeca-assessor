@@ -4,6 +4,7 @@ import { findUserByPhone } from "../users/service";
 import { transcribeAudio, extractTransaction } from "../ai/engine";
 import { registerFromExtraction, getLastTransaction, deleteTransaction, updateTransactionAmount, updateTransactionCategory } from "../financial/engine";
 import { answerFinanceQuery, QUERY_GATE_RE } from "./query";
+import { answerInvoiceQuery, isInvoiceQuery } from "./invoice";
 import { checkBudgetAlert } from "../financial/budgets";
 import { prisma } from "../db/client";
 
@@ -152,6 +153,10 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
     return sendReply(`Categoria corrigida para ${categoryName}.`);
   }
 
+  if (isInvoiceQuery(text)) {
+    return sendReply(await answerInvoiceQuery(text, user));
+  }
+
   if (QUERY_GATE_RE.test(text)) {
     const answer = await answerFinanceQuery(text, user);
     if (answer) return sendReply(answer);
@@ -185,6 +190,14 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
 
   if (result.kind === "needs_clarification") {
     return sendReply(result.question);
+  }
+
+  if (result.type === "ADJUSTMENT") {
+    const accountName = result.accountName ? `
+Conta: ${result.accountName}` : "";
+    return sendReply(`💳 Pagamento de fatura registrado!
+R$ ${result.amount.toFixed(2)}${accountName}
+O limite do cartão foi atualizado.`);
   }
 
   const emoji = extraction.tipo === "RECEITA" ? "💰" : "💸";
