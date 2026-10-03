@@ -50,3 +50,13 @@ export async function sendGoalAlertEmail(to: string, message: { subject: string;
   const { error } = await client.emails.send({ from: fromAddress, to, ...message });
   if (error) throw new Error(`Resend: ${error.message}`);
 }
+
+/** A plain notification e-mail (subject + HTML), for digests and alerts. */
+export async function sendNotificationEmail(to: string, message: { subject: string; html: string }) {
+  if (!client) {
+    throw new Error("RESEND_API_KEY is not configured");
+  }
+
+  const { error } = await client.emails.send({ from: fromAddress, to, ...message });
+  if (error) throw new Error(`Resend: ${error.message}`);
+}

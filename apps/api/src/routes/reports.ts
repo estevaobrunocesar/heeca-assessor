@@ -96,3 +96,22 @@ reportsRouter.put("/whatsapp-summary", async (req, res) => {
   });
   res.json({ enabled });
 });
+
+// Month-closing e-mail: off until the person turns it on.
+reportsRouter.get("/monthly-review", async (req, res) => {
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: req.auth!.sub }, select: { monthlyReviewEmail: true, email: true } });
+  res.json({ enabled: user.monthlyReviewEmail, email: user.email, emailConfigured: isEmailConfigured() });
+});
+
+reportsRouter.put("/monthly-review", async (req, res) => {
+  if (typeof req.body?.enabled !== "boolean") return res.status(400).json({ error: "enabled must be true or false" });
+  // Turning it on starts from the next closing: the month that just ended counts as already sent.
+  const now = new Date();
+  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const key = `M:${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, "0")}`;
+  await prisma.user.update({
+    where: { id: req.auth!.sub },
+    data: { monthlyReviewEmail: req.body.enabled, ...(req.body.enabled ? { monthlyReviewLastKey: key } : {}) },
+  });
+  res.json({ enabled: req.body.enabled });
+});

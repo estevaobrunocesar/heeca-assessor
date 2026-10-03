@@ -5,6 +5,7 @@ import cron from "node-cron";
 import { runReportEmails } from "./reports/emailReport";
 import { runGoalAlerts } from "./financial/goalAlerts";
 import { runWeeklySummaries } from "./financial/weeklySummary";
+import { runMonthlyReviews } from "./financial/monthlyReview";
 import { handleIncomingWhatsapp } from "./gateway/whatsapp";
 import { verifyTwilioSignature } from "./gateway/twilioAuth";
 import { dashboardRouter } from "./routes/dashboard";
@@ -124,5 +125,15 @@ cron.schedule("30 8 * * 1-3", async () => {
     }
   } catch (err) {
     console.error("Error sending weekly summaries:", err);
+  }
+});
+
+// Days 1-3 of each month at 09:30 server time — month-closing e-mail for people who turned it on.
+cron.schedule("30 9 1-3 * *", async () => {
+  try {
+    const count = await runMonthlyReviews();
+    if (count > 0) console.log(`Sent ${count} monthly review e-mail(s).`);
+  } catch (err) {
+    console.error("Error sending monthly reviews:", err);
   }
 });

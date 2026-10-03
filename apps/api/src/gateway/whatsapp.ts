@@ -25,6 +25,7 @@ import { buildReportReply, isReportRequest } from "./report";
 import { answerRepeated, isRepeatedQuery } from "./repeated";
 import { answerBillList, handleBillCreate, handleBillPayment, isBillListQuery, mightCreateBill, mightPayBill } from "./bills";
 import { checkBudgetAlert } from "../financial/budgets";
+import { checkSpendingAlerts } from "../financial/smartAlerts";
 import { prisma } from "../db/client";
 
 // Replies are sent as TwiML in the webhook response, not via the REST
@@ -217,6 +218,8 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
       // that's the figure the budget threshold check needs, not the total.
       const amountThisMonth = result.installments ? result.installments.amountEach : result.amount;
       alertLine = (await checkBudgetAlert(user!.workspaceId, result.categoryId, amountThisMonth)) ?? "";
+      // Usual-spend and month-over-month alerts: best effort, never allowed to break the confirmation.
+      alertLine += await checkSpendingAlerts(user!.workspaceId, result.transactionId, amountThisMonth).catch(() => "");
     }
 
     let duplicateLine = "";

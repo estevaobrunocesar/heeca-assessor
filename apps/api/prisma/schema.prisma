@@ -122,6 +122,9 @@ model User {
   // Weekly summary by WhatsApp: off until the person asks. The key names the last week sent ("W:2026-09-28").
   weeklyWhatsappSummary Boolean @default(false)
   weeklyWhatsappLastKey String?
+  // Month-closing e-mail (result vs the month before, categories above their average): off until asked. Key = last month sent ("M:2026-09").
+  monthlyReviewEmail   Boolean @default(false)
+  monthlyReviewLastKey String?
 
   // Periodic report by e-mail: off until the person opts in. The key names the last period
   // already sent ("W:2026-09-28" / "M:2026-09"), which makes the daily job idempotent.
