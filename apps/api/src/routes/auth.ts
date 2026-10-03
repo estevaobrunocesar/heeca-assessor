@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { login } from "../auth/service";
+import { beginMfaSetup, completeMfaLogin, disableMfa, enableMfa, mfaStatus } from "../auth/mfaService";
 import { requireAuth } from "../auth/middleware";
 import { createPasswordResetToken, consumePasswordResetToken } from "../auth/passwordReset";
 import { sendPasswordResetEmail, isEmailConfigured } from "../email/resend";
@@ -21,7 +22,22 @@ authRouter.post("/login", async (req, res) => {
     return res.status(401).json({ error: "Invalid credentials" });
   }
 
-  res.json(result);
+  // Right password, but MFA is on: no session yet, only a short-lived challenge to answer with a code.
+  if (result.kind === "mfa") return res.json({ mfaRequired: true, mfaToken: result.mfaToken });
+
+  res.json({ token: result.token, user: result.user });
+});
+
+authRouter.post("/mfa/verify", async (req, res) => {
+  const { mfaToken, code } = req.body as { mfaToken?: string; code?: string };
+  if (!mfaToken || !code) return res.status(400).json({ error: "mfaToken and code are required" });
+
+  const result = await completeMfaLogin(mfaToken, code);
+  if (result.ok) return res.json({ token: result.token, user: result.user, recoveryCodesLeft: result.recoveryCodesLeft });
+
+  if (result.reason === "expired") return res.status(401).json({ error: "expired" });
+  if (result.reason === "locked") return res.status(429).json({ error: "locked", retryAfterMinutes: result.retryAfterMinutes });
+  res.status(401).json({ error: "invalid" });
 });
 
 authRouter.post("/forgot-password", async (req, res) => {
@@ -64,6 +80,35 @@ authRouter.get("/me", requireAuth, async (req, res) => {
   });
   if (!user) return res.status(404).json({ error: "User not found" });
   res.json(user);
+});
+
+authRouter.get("/mfa/status", requireAuth, async (req, res) => {
+  res.json(await mfaStatus(req.auth!.sub));
+});
+
+authRouter.post("/mfa/setup", requireAuth, async (req, res) => {
+  const setup = await beginMfaSetup(req.auth!.sub);
+  if (!setup) return res.status(409).json({ error: "already_enabled" });
+  res.json(setup);
+});
+
+authRouter.post("/mfa/enable", requireAuth, async (req, res) => {
+  const { code } = req.body as { code?: string };
+  if (!code) return res.status(400).json({ error: "code is required" });
+
+  const recoveryCodes = await enableMfa(req.auth!.sub, code);
+  if (!recoveryCodes) return res.status(400).json({ error: "invalid" });
+  res.json({ recoveryCodes });
+});
+
+authRouter.post("/mfa/disable", requireAuth, async (req, res) => {
+  const { password, code } = req.body as { password?: string; code?: string };
+  if (!password || !code) return res.status(400).json({ error: "password and code are required" });
+
+  const result = await disableMfa(req.auth!.sub, password, code);
+  if (result.ok) return res.json({ disabled: true });
+  if (result.reason === "locked") return res.status(429).json({ error: "locked", retryAfterMinutes: result.retryAfterMinutes });
+  res.status(401).json({ error: result.reason });
 });
 
 // Links the WhatsApp number the user talks to the Assessor from to their own

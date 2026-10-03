@@ -2,6 +2,7 @@ import { Router } from "express";
 import { prisma } from "../db/client";
 import { requireAdmin } from "../auth/middleware";
 import { hashPassword } from "../auth/service";
+import { resetMfa } from "../auth/mfaService";
 import type { UserRole } from "@prisma/client";
 
 export const usersRouter = Router();
@@ -18,6 +19,7 @@ usersRouter.get("/", requireAdmin, async (req, res) => {
       email: true,
       role: true,
       status: true,
+      mfaEnabled: true,
       createdAt: true,
     },
   });
@@ -46,6 +48,14 @@ usersRouter.post("/", requireAdmin, async (req, res) => {
   });
 
   res.status(201).json({ id: user.id, name: user.name, whatsappPhone: user.whatsappPhone, email: user.email, role: user.role });
+});
+
+// Escape hatch for a user who lost their authenticator and their recovery codes.
+usersRouter.post("/:id/mfa/reset", requireAdmin, async (req, res) => {
+  const user = await prisma.user.findFirst({ where: { id: req.params.id, workspaceId: req.auth!.workspaceId } });
+  if (!user) return res.status(404).json({ error: "User not found" });
+  await resetMfa(user.id);
+  res.json({ reset: true });
 });
 
 usersRouter.patch("/:id", requireAdmin, async (req, res) => {

@@ -100,6 +100,14 @@ model User {
   aiLogs              AiInteractionLog[]
   recurringRules      RecurringRule[]
   passwordResets      PasswordResetToken[]
+  // Two-factor auth (TOTP). The secret is stored encrypted; recovery codes only as hashes.
+  mfaEnabled        Boolean   @default(false)
+  mfaSecretEnc      String?
+  mfaLastStep       Int?
+  mfaRecoveryHashes String[]  @default([])
+  mfaFailedAttempts Int       @default(0)
+  mfaLockedUntil    DateTime?
+
   pendingConfirmation PendingConfirmation?
   bills               Bill[]
 }

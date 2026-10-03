@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Download, TriangleAlert } from "lucide-react";
+import { MfaCard } from "../components/MfaCard";
 
 export default function ConfiguracoesPage() {
   const router = useRouter();
@@ -49,7 +50,9 @@ export default function ConfiguracoesPage() {
   return (
     <main style={{ padding: "28px 28px 48px" }}>
       <h1 style={{ fontSize: 24 }}>Configurações</h1>
-      <p style={{ color: "var(--muted)", fontSize: 14, marginTop: 4 }}>Dados e privacidade</p>
+      <p style={{ color: "var(--muted)", fontSize: 14, marginTop: 4 }}>Segurança, dados e privacidade</p>
+
+      <MfaCard />
 
       <div className="card" style={{ padding: 18, marginTop: 24, maxWidth: 560 }}>
         <div style={{ fontWeight: 600, fontSize: 14 }}>Exportar meus dados</div>

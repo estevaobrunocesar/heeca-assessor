@@ -8,6 +8,7 @@ type User = {
   email: string;
   role: "ADMIN" | "USER";
   status: "ACTIVE" | "INACTIVE";
+  mfaEnabled: boolean;
 };
 
 function initials(name: string) {
@@ -32,6 +33,13 @@ async function createUser(formData: FormData) {
       role: formData.get("role"),
     }),
   });
+  revalidatePath("/admin/usuarios");
+}
+
+// For someone who lost their authenticator and recovery codes: turns their MFA off.
+async function resetMfa(formData: FormData) {
+  "use server";
+  await apiFetch(`/api/users/${formData.get("id")}/mfa/reset`, { method: "POST" });
   revalidatePath("/admin/usuarios");
 }
 
@@ -64,6 +72,7 @@ export default async function UsersAdminPage() {
               <th style={{ paddingTop: 16 }}>E-mail</th>
               <th style={{ paddingTop: 16 }}>WhatsApp</th>
               <th style={{ paddingTop: 16 }}>Perfil</th>
+              <th style={{ paddingTop: 16 }}>MFA</th>
               <th style={{ paddingTop: 16 }}>Status</th>
               <th style={{ paddingTop: 16, paddingRight: 18, textAlign: "right" }}></th>
             </tr>
@@ -98,6 +107,19 @@ export default async function UsersAdminPage() {
                   {u.whatsappPhone ?? <span className="pill pill-muted">Não vinculado</span>}
                 </td>
                 <td style={{ color: "var(--muted)" }}>{u.role === "ADMIN" ? "Administrador" : "Usuário"}</td>
+                <td>
+                  {u.mfaEnabled ? (
+                    <form action={resetMfa} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <input type="hidden" name="id" value={u.id} />
+                      <span className="pill pill-green">Ativo</span>
+                      <button type="submit" className="btn btn-ghost" style={{ fontSize: 11, padding: "4px 8px" }} title="Desativa o MFA desta pessoa (perdeu o celular e os códigos)">
+                        Resetar
+                      </button>
+                    </form>
+                  ) : (
+                    <span className="pill pill-muted">Desativado</span>
+                  )}
+                </td>
                 <td>
                   <span className={`pill ${u.status === "ACTIVE" ? "pill-green" : "pill-muted"}`}>
                     {u.status === "ACTIVE" ? "Ativo" : "Inativo"}

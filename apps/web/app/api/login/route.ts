@@ -11,13 +11,19 @@ export async function POST(req: Request) {
   });
 
   if (!apiRes.ok) {
-    return NextResponse.json({ error: "Credenciais inválidas." }, { status: 401 });
+    return NextResponse.json({ error: "Credenciais inválidas." }, { status: apiRes.status === 429 ? 429 : 401 });
   }
 
-  const { token, user } = await apiRes.json();
+  const data = await apiRes.json();
 
-  const res = NextResponse.json({ user });
-  res.cookies.set(SESSION_COOKIE, token, {
+  // Password was right but the account has a second factor: no session cookie
+  // yet, only the short-lived challenge the browser must answer with a code.
+  if (data.mfaRequired) {
+    return NextResponse.json({ mfaRequired: true, mfaToken: data.mfaToken });
+  }
+
+  const res = NextResponse.json({ user: data.user });
+  res.cookies.set(SESSION_COOKIE, data.token, {
     httpOnly: true,
     secure: true,
     sameSite: "lax",
