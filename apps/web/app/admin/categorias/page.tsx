@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { apiFetch } from "../../../lib/api";
 import { ConfirmButton } from "../../components/ConfirmButton";
+import { ApplyRuleButton } from "../../components/ApplyRuleButton";
 
 type Category = {
   id: string;
@@ -219,9 +220,12 @@ export default async function CategoriesAdminPage() {
                     </span>
                   </td>
                   <td style={{ textAlign: "right" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10 }}>
+                    <ApplyRuleButton ruleId={r.id} keyword={r.keyword} />
                     <ConfirmButton action={deleteKeywordRule} id={r.id} title="Apagar regra" message={`Apagar a regra "${r.keyword}"?`}>
                       <Trash2 size={15} />
                     </ConfirmButton>
+                    </div>
                   </td>
                 </tr>
               ))}

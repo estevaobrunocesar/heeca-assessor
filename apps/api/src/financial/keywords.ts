@@ -118,3 +118,31 @@ export async function saveKeyword(workspaceId: string, raw: string, categoryId: 
   });
   return keyword;
 }
+
+const MAX_RETROACTIVE_SCAN = 20_000;
+
+/**
+ * The existing entries a rule's keyword appears in (same whole-word match used on new
+ * entries), split into those with no category and those filed somewhere else. Only
+ * confirmed entries of the category's own type (expense/income) are considered.
+ */
+export async function findRuleMatches(workspaceId: string, rule: { keyword: string; categoryId: string }) {
+  const category = await prisma.category.findFirst({ where: { id: rule.categoryId, workspaceId } });
+  if (!category) return { uncategorized: [] as string[], other: [] as string[] };
+
+  const rows = await prisma.transaction.findMany({
+    where: { workspaceId, status: "CONFIRMED", type: category.type, OR: [{ categoryId: null }, { categoryId: { not: category.id } }] },
+    select: { id: true, description: true, merchant: true, categoryId: true },
+    orderBy: { date: "desc" },
+    take: MAX_RETROACTIVE_SCAN,
+  });
+
+  const uncategorized: string[] = [];
+  const other: string[] = [];
+  for (const row of rows) {
+    const haystack = ` ${normalizeText([row.description, row.merchant].filter(Boolean).join(" "))} `;
+    if (!haystack.includes(` ${rule.keyword} `)) continue;
+    (row.categoryId === null ? uncategorized : other).push(row.id);
+  }
+  return { uncategorized, other };
+}
