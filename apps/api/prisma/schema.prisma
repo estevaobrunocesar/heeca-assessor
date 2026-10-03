@@ -117,6 +117,11 @@ model User {
   goalContributions GoalContribution[]
   // E-mail when a savings goal is behind, close to its deadline or overdue. On unless the person turns it off.
   goalAlertsEmail Boolean @default(true)
+  // When the person last wrote to the bot: WhatsApp only lets us message first within 24h of that.
+  lastWhatsappAt DateTime?
+  // Weekly summary by WhatsApp: off until the person asks. The key names the last week sent ("W:2026-09-28").
+  weeklyWhatsappSummary Boolean @default(false)
+  weeklyWhatsappLastKey String?
 
   // Periodic report by e-mail: off until the person opts in. The key names the last period
   // already sent ("W:2026-09-28" / "M:2026-09"), which makes the daily job idempotent.

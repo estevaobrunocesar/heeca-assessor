@@ -2,6 +2,7 @@ import Link from "next/link";
 import { FileText, FileSpreadsheet } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import { ReportEmailCard } from "../components/ReportEmailCard";
+import { WhatsappSummaryCard } from "../components/WhatsappSummaryCard";
 
 type ReportData = {
   label: string;
@@ -69,6 +70,7 @@ export default async function RelatoriosPage({
       </div>
 
       <ReportEmailCard />
+      <WhatsappSummaryCard />
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 20 }}>
         {PRESETS.map((p) => (

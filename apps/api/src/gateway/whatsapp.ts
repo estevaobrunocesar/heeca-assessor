@@ -13,6 +13,7 @@ import { readAndStageDocument, summarizeStaged } from "./importFile";
 import { sendWhatsapp } from "./outbound";
 import { answerPeopleList, PEOPLE_LIST_RE } from "./people";
 import { answerGoalList, GOALS_LIST_RE, handleGoalContribution } from "./goals";
+import { handleSummary } from "./summary";
 import { resolvePerson } from "../financial/people";
 import { parseDay } from "../financial/bills";
 import { todayInBrazil } from "../financial/invoices";
@@ -139,6 +140,9 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
   if (!user) {
     return sendReply("Esse número não está cadastrado como usuário do assessor financeiro. Peça ao administrador para te cadastrar.");
   }
+
+  // Opens the 24h window in which we may write to this person first (the weekly summary relies on it).
+  void prisma.user.update({ where: { id: user.id }, data: { lastWhatsappAt: new Date() } }).catch(() => {});
 
   /** Registers an extracted entry (from text, a transcribed audio or a receipt photo) and writes the reply. */
   async function registerAndReply(
@@ -459,6 +463,9 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
     await setTransactionPerson(last.id, user.workspaceId, null);
     return sendReply("Tirei a pessoa do último lançamento.");
   }
+
+  const summaryReply = await handleSummary(text, user);
+  if (summaryReply) return sendReply(summaryReply);
 
   const goalReply = await handleGoalContribution(text, user);
   if (goalReply) return sendReply(goalReply);

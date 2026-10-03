@@ -17,3 +17,16 @@ export async function sendWhatsapp(to: string, body: string): Promise<void> {
   const client = twilio(process.env.TWILIO_ACCOUNT_SID!, process.env.TWILIO_AUTH_TOKEN!);
   await client.messages.create({ from: process.env.TWILIO_WHATSAPP_NUMBER!, to, body });
 }
+
+/**
+ * Sends an approved WhatsApp template. This is the only way to write to someone first once the
+ * 24h window has closed. Template variables cannot contain line breaks, tabs or long runs of spaces.
+ */
+export async function sendWhatsappTemplate(to: string, contentSid: string, variables: Record<string, string>): Promise<void> {
+  if (process.env.WHATSAPP_OUTBOUND === "log") {
+    console.log(`[whatsapp outbound template ${contentSid} -> ${to}] ${JSON.stringify(variables)}`);
+    return;
+  }
+  const client = twilio(process.env.TWILIO_ACCOUNT_SID!, process.env.TWILIO_AUTH_TOKEN!);
+  await client.messages.create({ from: process.env.TWILIO_WHATSAPP_NUMBER!, to, contentSid, contentVariables: JSON.stringify(variables) });
+}

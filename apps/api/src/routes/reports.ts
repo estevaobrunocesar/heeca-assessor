@@ -6,6 +6,7 @@ import { buildXlsx } from "../reports/xlsx";
 import { PDF_TYPE, XLSX_TYPE } from "../reports/store";
 import { lastClosedPeriod, sendReportTo, type Frequency } from "../reports/emailReport";
 import { isEmailConfigured } from "../email/resend";
+import { lastClosedWeek } from "../financial/weeklySummary";
 
 export const reportsRouter = Router();
 
@@ -69,4 +70,29 @@ reportsRouter.post("/email/test", async (req, res) => {
     console.error("Test report e-mail failed:", err);
     res.status(502).json({ error: "send_failed" });
   }
+});
+
+// Weekly summary by WhatsApp: off until the person turns it on, and only possible with a linked number.
+reportsRouter.get("/whatsapp-summary", async (req, res) => {
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: req.auth!.sub }, select: { weeklyWhatsappSummary: true, whatsappPhone: true } });
+  res.json({
+    enabled: user.weeklyWhatsappSummary,
+    phoneLinked: user.whatsappPhone !== null,
+    templateConfigured: !!process.env.TWILIO_SUMMARY_TEMPLATE_SID,
+  });
+});
+
+reportsRouter.put("/whatsapp-summary", async (req, res) => {
+  const enabled = req.body?.enabled;
+  if (typeof enabled !== "boolean") return res.status(400).json({ error: "enabled must be true or false" });
+
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: req.auth!.sub }, select: { whatsappPhone: true } });
+  if (enabled && !user.whatsappPhone) return res.status(409).json({ error: "phone_not_linked" });
+
+  // Turning it on starts counting from now: the closed week counts as already sent.
+  await prisma.user.update({
+    where: { id: req.auth!.sub },
+    data: { weeklyWhatsappSummary: enabled, ...(enabled ? { weeklyWhatsappLastKey: lastClosedWeek().key } : {}) },
+  });
+  res.json({ enabled });
 });

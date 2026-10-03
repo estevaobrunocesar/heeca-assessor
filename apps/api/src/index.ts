@@ -4,6 +4,7 @@ import rateLimit from "express-rate-limit";
 import cron from "node-cron";
 import { runReportEmails } from "./reports/emailReport";
 import { runGoalAlerts } from "./financial/goalAlerts";
+import { runWeeklySummaries } from "./financial/weeklySummary";
 import { handleIncomingWhatsapp } from "./gateway/whatsapp";
 import { verifyTwilioSignature } from "./gateway/twilioAuth";
 import { dashboardRouter } from "./routes/dashboard";
@@ -111,5 +112,17 @@ cron.schedule("0 9 * * *", async () => {
     if (count > 0) console.log(`Sent ${count} goal alert(s).`);
   } catch (err) {
     console.error("Error sending goal alerts:", err);
+  }
+});
+
+// Monday to Wednesday at 08:30 server time — weekly WhatsApp summary for people who turned it on.
+cron.schedule("30 8 * * 1-3", async () => {
+  try {
+    const r = await runWeeklySummaries();
+    if (r && (r.free_form || r.template || r.no_window || r.failed)) {
+      console.log(`Weekly summaries: ${r.free_form} sent in window, ${r.template} by template, ${r.no_window} waiting for a window, ${r.failed} failed.`);
+    }
+  } catch (err) {
+    console.error("Error sending weekly summaries:", err);
   }
 });
