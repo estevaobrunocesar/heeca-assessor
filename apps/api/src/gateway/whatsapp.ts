@@ -14,6 +14,7 @@ import { sendWhatsapp } from "./outbound";
 import { answerPeopleList, PEOPLE_LIST_RE } from "./people";
 import { answerGoalList, GOALS_LIST_RE, handleGoalContribution } from "./goals";
 import { handleSummary } from "./summary";
+import { answerFinances, FINANCES_RE } from "./analysis";
 import { resolvePerson } from "../financial/people";
 import { parseDay } from "../financial/bills";
 import { todayInBrazil } from "../financial/invoices";
@@ -463,6 +464,8 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
     await setTransactionPerson(last.id, user.workspaceId, null);
     return sendReply("Tirei a pessoa do último lançamento.");
   }
+
+  if (FINANCES_RE.test(text)) return sendReply(await answerFinances(user));
 
   const summaryReply = await handleSummary(text, user);
   if (summaryReply) return sendReply(summaryReply);

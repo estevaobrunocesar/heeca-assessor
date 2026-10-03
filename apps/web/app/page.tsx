@@ -43,6 +43,13 @@ async function getGoalStatuses(): Promise<GoalStatus[]> {
   return res.ok ? res.json() : [];
 }
 
+type Insight = { kind: string; severity: "alert" | "warn" | "info"; text: string };
+
+async function getInsights(): Promise<Insight[]> {
+  const res = await apiFetch("/api/insights/bottlenecks");
+  return res.ok ? (await res.json()).insights : [];
+}
+
 type PendingBill = { amount: number; state: "VENCIDA" | "HOJE" | "A_VENCER" | null };
 
 async function getPendingBills(): Promise<PendingBill[]> {
@@ -56,7 +63,7 @@ function formatBRL(value: number) {
 }
 
 export default async function DashboardPage() {
-  const [summary, trend, accounts, bills, people, goals] = await Promise.all([getSummary(), getTrend(), getAccounts(), getPendingBills(), getPeopleSpend(), getGoalStatuses()]);
+  const [summary, trend, accounts, bills, people, goals, insights] = await Promise.all([getSummary(), getTrend(), getAccounts(), getPendingBills(), getPeopleSpend(), getGoalStatuses(), getInsights()]);
   const goalAlerts = goals.filter((g) => g.behind || g.state === "VENCIDA" || (g.state === "COM_PRAZO" && g.daysLeft !== null && g.daysLeft <= 7));
   const bySpend = people.filter((p) => p.monthTotal > 0).sort((a, b) => b.monthTotal - a.monthTotal);
   const peopleMax = bySpend[0]?.monthTotal ?? 0;
@@ -202,6 +209,21 @@ export default async function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {insights.length > 0 && (
+        <div className="card" style={{ padding: 20, marginTop: 16 }}>
+          <h2 style={{ fontSize: 15 }}>Pontos de atenção</h2>
+          <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 2 }}>Calculado só com os seus lançamentos deste mês, comparado ao mesmo período do mês passado</p>
+          <ul style={{ listStyle: "none", margin: "14px 0 0", padding: 0, display: "grid", gap: 10 }}>
+            {insights.map((i, n) => (
+              <li key={n} style={{ display: "flex", gap: 10, fontSize: 14, alignItems: "flex-start" }}>
+                <span aria-hidden>{i.severity === "alert" ? "🚨" : i.severity === "warn" ? "⚠️" : "💡"}</span>
+                <span style={{ color: i.severity === "alert" ? "var(--red)" : "var(--ink)" }}>{i.text}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {bySpend.length > 0 && (
         <div className="card" style={{ padding: 20, marginTop: 16 }}>
