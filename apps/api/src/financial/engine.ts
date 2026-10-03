@@ -5,6 +5,7 @@ import { resolveDate } from "./resolveDate";
 import { resolveCategory, resolveCategoryByName, categoryLabel } from "./categories";
 import { matchKeywordRule, saveKeyword } from "./keywords";
 import { findPossibleDuplicate, repeatKey } from "./repeats";
+import { resolvePerson } from "./people";
 import { shouldAutoConfirm } from "./confidence";
 import { findAccountByMention, getDefaultAccount } from "./accounts";
 import { reopenBillsPaidBy } from "./bills";
@@ -28,6 +29,7 @@ export type RegisterResult =
       type: "INCOME" | "EXPENSE" | "TRANSFER" | "ADJUSTMENT";
       installments: { total: number; amountEach: number } | null;
       possibleDuplicate: { description: string; createdAt: Date } | null;
+      person: { name: string; created: boolean } | null;
     }
   | { kind: "needs_clarification"; question: string };
 
@@ -69,6 +71,12 @@ export async function registerFromExtraction(params: {
 
   const category = rule?.category ?? (await resolveCategory(extraction.categoria, extraction.subcategoria, type, workspaceId));
   const date = resolveDate(extraction.data_relativa, receivedAt);
+
+  // Who the entry is for, when the message names someone. A new name or
+  // relation creates the person (and the reply says so, so a wrong guess is
+  // easy to spot and fix).
+  const resolvedPerson =
+    extraction.pessoa && type !== "TRANSFER" ? await resolvePerson(extraction.pessoa, extraction.relacao, workspaceId) : null;
 
   // Paying a card's invoice isn't new spending — the purchases were already
   // counted when made. Stored as a positive adjustment (same as the
@@ -128,6 +136,7 @@ export async function registerFromExtraction(params: {
         categoryId: category?.id,
         accountId: account?.id,
         merchant: extraction.estabelecimento,
+        personId: resolvedPerson?.person.id,
         isRecurring: extraction.recorrente,
         isInstallment: installmentCount > 1,
         installmentNo: installmentCount > 1 ? i + 1 : undefined,
@@ -154,6 +163,7 @@ export async function registerFromExtraction(params: {
     possibleDuplicate: duplicate
       ? { description: duplicate.description.replace(/\s*\(parcela \d+\/\d+\)$/i, ""), createdAt: duplicate.createdAt }
       : null,
+    person: resolvedPerson ? { name: resolvedPerson.person.name, created: resolvedPerson.created } : null,
   };
 }
 
@@ -254,4 +264,31 @@ export async function updateTransactionCategory(transactionId: string, workspace
   if (tx.type !== "INCOME" && tx.type !== "EXPENSE") return { ok: false, reason: "unsupported_type" } as const;
   const category = await resolveCategoryByName(categoryName, tx.type, workspaceId);
   return setTransactionCategory(transactionId, workspaceId, category.id);
+}
+
+export type SetPersonResult =
+  | { ok: true; personName: string | null }
+  | { ok: false; reason: "not_found" | "person_not_found" };
+
+/**
+ * Attributes a transaction (and every installment of the same purchase) to a
+ * person, or to nobody when personId is null.
+ */
+export async function setTransactionPerson(
+  transactionId: string,
+  workspaceId: string,
+  personId: string | null,
+): Promise<SetPersonResult> {
+  const tx = await prisma.transaction.findFirst({ where: { id: transactionId, workspaceId, status: "CONFIRMED" } });
+  if (!tx) return { ok: false, reason: "not_found" };
+
+  let personName: string | null = null;
+  if (personId) {
+    const person = await prisma.person.findFirst({ where: { id: personId, workspaceId } });
+    if (!person) return { ok: false, reason: "person_not_found" };
+    personName = person.name;
+  }
+
+  await prisma.transaction.updateMany({ where: purchaseRows(tx), data: { personId } });
+  return { ok: true, personName };
 }

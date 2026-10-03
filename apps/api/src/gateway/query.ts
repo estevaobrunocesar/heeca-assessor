@@ -2,6 +2,7 @@ import { startOfDay, endOfDay, format } from "date-fns";
 import { interpretQuery } from "../ai/engine";
 import { findCategoryScope, scopeOfCategory } from "../financial/categories";
 import { matchKeywordRule } from "../financial/keywords";
+import { findPerson } from "../financial/people";
 import { findAccountByMention } from "../financial/accounts";
 import { getPeriodReport } from "../financial/queries";
 
@@ -9,7 +10,7 @@ import { getPeriodReport } from "../financial/queries";
 // pay for an extra AI call: only things that read like a question go through
 // the query interpreter, which then makes the real call on whether it is one.
 export const QUERY_GATE_RE =
-  /\?\s*$|^\s*(qual|quais|quanto|quantos|quantas|mostra|mostre|me (mostra|diz|fala|passa|d[aá])|liste|lista|resumo|extrato)\b|como est[aá]|sobrou|maior (categoria|gasto)|quanto (gastei|recebi)/i;
+  /\?\s*$|^\s*(qual|quais|quanto|quantos|quantas|mostra|mostre|me (mostra|diz|fala|passa|d[aá])|liste|lista|resumo|extrato)\b|como est[aá]|sobrou|maior (categoria|gasto)|quanto (gastei|recebi)|^\s*(gastos?|despesas?)\s+(d[oae]s?|com|pr[ao])\b/i;
 
 const brl = (value: number) =>
   value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }).replace(/ /g, " ");
@@ -41,6 +42,12 @@ export async function answerFinanceQuery(
     if (!scope) return `Não encontrei a categoria "${q.subcategoria ?? q.categoria}" entre as suas categorias.`;
   }
 
+  let person: Awaited<ReturnType<typeof findPerson>> = null;
+  if (q.pessoa) {
+    person = await findPerson(q.pessoa, user.workspaceId);
+    if (!person) return `Não encontrei "${q.pessoa}" entre as suas pessoas. Mande "quais pessoas tenho?" para ver quem está cadastrado.`;
+  }
+
   let account: Awaited<ReturnType<typeof findAccountByMention>> = undefined;
   if (q.conta) {
     account = await findAccountByMention(q.conta, user.workspaceId);
@@ -56,9 +63,10 @@ export async function answerFinanceQuery(
     categoryIds: scope?.ids,
     breakdownBySubcategory: scope?.isParent,
     accountId: account?.id,
+    personId: person?.id,
   });
 
-  const subject = [scope?.label, account ? (account.bank ?? account.name) : null].filter(Boolean).join(" · ") || "Resumo";
+  const subject = [person?.name, scope?.label, account ? (account.bank ?? account.name) : null].filter(Boolean).join(" · ") || "Resumo";
   const header = `📊 ${subject} — ${q.descricao_periodo}`;
 
   if (report.count === 0) return `${header}\nNenhum lançamento encontrado.`;
@@ -76,7 +84,12 @@ export async function answerFinanceQuery(
     for (const g of report.breakdown.slice(0, 5)) lines.push(`• ${g.name} — ${brl(g.total)}`);
   }
 
-  if (scope || account) {
+  if (q.por_pessoa && !person && q.tipo !== "RECEITA" && report.byPerson.some((p) => p.name !== "Sem pessoa")) {
+    lines.push("", "Por pessoa:");
+    for (const p of report.byPerson.slice(0, 8)) lines.push(`• ${p.name} — ${brl(p.total)}`);
+  }
+
+  if (scope || account || person) {
     lines.push("", "Últimos:");
     for (const t of report.recent) lines.push(`• ${format(t.date, "dd/MM")} ${t.description} — ${brl(t.amount)}`);
   }

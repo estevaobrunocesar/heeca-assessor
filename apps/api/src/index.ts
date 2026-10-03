@@ -16,6 +16,7 @@ import { billsRouter } from "./routes/bills";
 import { categoryKeywordsRouter } from "./routes/categoryKeywords";
 import { reportsRouter } from "./routes/reports";
 import { insightsRouter } from "./routes/insights";
+import { peopleRouter } from "./routes/people";
 import { getTemporaryFile } from "./reports/store";
 import { workspaceRouter } from "./routes/workspace";
 import { authRouter } from "./routes/auth";
@@ -71,6 +72,7 @@ app.use("/api/bills", requireAuth, billsRouter);
 app.use("/api/category-keywords", requireAuth, categoryKeywordsRouter);
 app.use("/api/reports", requireAuth, reportsRouter);
 app.use("/api/insights", requireAuth, insightsRouter);
+app.use("/api/people", requireAuth, peopleRouter);
 app.use("/api/workspace", requireAuth, workspaceRouter);
 
 const port = process.env.PORT ?? 3001;

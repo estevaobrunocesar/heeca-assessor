@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../db/client";
 import { requireAdmin } from "../auth/middleware";
-import { deleteTransaction, setTransactionCategory } from "../financial/engine";
+import { deleteTransaction, setTransactionCategory, setTransactionPerson } from "../financial/engine";
 import type { Prisma, TransactionType } from "@prisma/client";
 
 export const transactionsRouter = Router();
@@ -25,7 +25,7 @@ transactionsRouter.get("/", async (req, res) => {
   const [transactions, total] = await Promise.all([
     prisma.transaction.findMany({
       where,
-      include: { category: true, user: true, account: true },
+      include: { category: true, user: true, account: true, person: true },
       orderBy: { date: "desc" },
       take,
       skip,
@@ -48,12 +48,29 @@ transactionsRouter.delete("/:id", requireAdmin, async (req, res) => {
 // Changes a transaction's category (all installments of a purchase move
 // together, and the merchant is remembered — see setTransactionCategory).
 transactionsRouter.patch("/:id", requireAdmin, async (req, res) => {
-  const { categoryId } = req.body as { categoryId?: string };
-  if (!categoryId) return res.status(400).json({ error: "categoryId is required" });
+  const body = req.body as { categoryId?: string; personId?: string | null };
+  const workspaceId = req.auth!.workspaceId;
+  const hasPerson = "personId" in body;
+  if (!body.categoryId && !hasPerson) return res.status(400).json({ error: "categoryId or personId is required" });
 
-  const result = await setTransactionCategory(req.params.id, req.auth!.workspaceId, categoryId);
-  if (result.ok) return res.json({ label: result.label, learnedKeyword: result.learnedKeyword });
+  const out: { label?: string | null; learnedKeyword?: string | null; personName?: string | null } = {};
 
-  const status = result.reason === "not_found" || result.reason === "category_not_found" ? 404 : 400;
-  res.status(status).json({ error: result.reason });
+  if (body.categoryId) {
+    const result = await setTransactionCategory(req.params.id, workspaceId, body.categoryId);
+    if (!result.ok) {
+      const status = result.reason === "not_found" || result.reason === "category_not_found" ? 404 : 400;
+      return res.status(status).json({ error: result.reason });
+    }
+    out.label = result.label;
+    out.learnedKeyword = result.learnedKeyword;
+  }
+
+  // personId: null removes the attribution.
+  if (hasPerson) {
+    const result = await setTransactionPerson(req.params.id, workspaceId, body.personId ?? null);
+    if (!result.ok) return res.status(404).json({ error: result.reason });
+    out.personName = result.personName;
+  }
+
+  res.json(out);
 });

@@ -11,9 +11,11 @@ import { classifyDocument, FriendlyError, type DocumentKind } from "../imports/d
 import { commitImport, latestImportBatch, undoImport, type StagedImport } from "../imports/statement";
 import { readAndStageDocument, summarizeStaged } from "./importFile";
 import { sendWhatsapp } from "./outbound";
+import { answerPeopleList, PEOPLE_LIST_RE } from "./people";
+import { resolvePerson } from "../financial/people";
 import { parseDay } from "../financial/bills";
 import { todayInBrazil } from "../financial/invoices";
-import { registerFromExtraction, getLastTransaction, deleteTransaction, updateTransactionAmount, updateTransactionCategory } from "../financial/engine";
+import { registerFromExtraction, setTransactionPerson, getLastTransaction, deleteTransaction, updateTransactionAmount, updateTransactionCategory } from "../financial/engine";
 import { answerFinanceQuery, QUERY_GATE_RE } from "./query";
 import { answerInvoiceQuery, isInvoiceQuery } from "./invoice";
 import { buildReportReply, isReportRequest } from "./report";
@@ -38,6 +40,12 @@ const FIX_AMOUNT_RE = /corrig(e|ir) o (último|ultimo) (lan[cç]amento )?para (?
 // "do último" clause is consumed before pra/para so it never leaks into X.
 const FIX_CATEGORY_RE =
   /(?:muda|mude|corrige|corrija|altera|troca)\s+(?:a\s+)?categoria\s+(?:d[oe]\s+(?:[úu]ltimo|ultimo)(?:\s+(?:lan[cç]amento|gasto))?\s+)?(?:pra|para|de)\s+(.+)/i;
+// "muda a pessoa (do último [lançamento]) pra/para X", or the natural "esse gasto foi do Pedro".
+const PERSON_SET_RE =
+  /(?:muda|mude|troca|corrige|altera|coloca|p[õo]e|marca)\s+(?:a\s+)?pessoa\s+(?:d[oe]\s+(?:[úu]ltimo|ultimo)(?:\s+(?:lan[cç]amento|gasto))?\s+)?(?:pra|para|de|como)\s+(.+)/i;
+const PERSON_NATURAL_RE = /^(?:esse|este|o\s+[úu]ltimo)\s+(?:gasto|lan[cç]amento)\s+(?:foi|[eé]|era)\s+(?:d[oae]|pr[ao]|para)\s+(.+)/i;
+const PERSON_CLEAR_RE =
+  /(?:tira|tire|remove|remova|limpa)\s+(?:a\s+)?pessoa(?:\s+d[oe]\s+(?:[úu]ltimo|ultimo)(?:\s+(?:lan[cç]amento|gasto))?)?\s*$/i;
 const CONFIRM_RE = /^(sim|confirmo|confirmar|pode|ok|isso)\b/i;
 const CANCEL_RE = /^(n[aã]o|cancela|cancelar)\b/i;
 const PENDING_CONFIRMATION_TTL_MS = 5 * 60 * 1000;
@@ -195,6 +203,8 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
       ? `\nParcelado em ${result.installments.total}x de R$ ${result.installments.amountEach.toFixed(2)}`
       : "";
 
+    const personLine = result.person ? "\n👤 Pessoa: " + result.person.name + (result.person.created ? " (nova)" : "") : "";
+
     let alertLine = "";
     if (result.type === "EXPENSE" && result.categoryId) {
       // Only the first installment actually lands in this month's spend —
@@ -214,7 +224,7 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
     }
 
     return deliver(
-      `${emoji} Anotado!\nR$ ${result.amount.toFixed(2)}\nCategoria: ${categoryLine}\nDescrição: ${extraction.descricao}${accountLine}${installmentLine}${extraNote}${alertLine}${duplicateLine}`,
+      `${emoji} Anotado!\nR$ ${result.amount.toFixed(2)}\nCategoria: ${categoryLine}\nDescrição: ${extraction.descricao}${accountLine}${personLine}${installmentLine}${extraNote}${alertLine}${duplicateLine}`,
     );
   }
 
@@ -327,6 +337,9 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
             subcategoria: line.subcategoria,
             descricao: line.descricao,
             estabelecimento: line.estabelecimento,
+            // A counterparty in a document (a PIX recipient) is not "a person of mine".
+            pessoa: null,
+            relacao: null,
             conta: accountName,
             data_relativa: dateOk ? line.data : "hoje",
             recorrente: false,
@@ -360,6 +373,9 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
 
   if (receipt) {
     const extraction = await extractFromReceipt(receipt, text, user.workspaceId, new Date());
+    // The recipient printed on a receipt (a PIX favorecido) is not one of the user's people.
+    extraction.pessoa = null;
+    extraction.relacao = null;
     // The receipt's own date is the one that counts — unless it looks misread.
     const read = /^\d{4}-\d{2}-\d{2}$/.test(extraction.data_relativa) ? parseDay(extraction.data_relativa) : null;
     const today = todayInBrazil();
@@ -420,6 +436,31 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
     if (!fixed.ok) return sendReply("Não consegui trocar a categoria desse lançamento.");
     const learned = fixed.learnedKeyword ? `\nVou lembrar: "${fixed.learnedKeyword}" → ${fixed.label}.` : "";
     return sendReply(`Categoria corrigida para ${fixed.label}.${learned}`);
+  }
+
+  const personMatch = text.match(PERSON_SET_RE) ?? text.match(PERSON_NATURAL_RE);
+  if (personMatch) {
+    const last = await getLastTransaction(user.id, user.workspaceId);
+    if (!last) return sendReply("Não encontrei nenhum lançamento recente para atribuir.");
+    const mention = personMatch[1].trim().replace(/[.!?]+$/, "");
+    const resolved = await resolvePerson(mention, null, user.workspaceId);
+    if (!resolved) {
+      return sendReply('Não entendi quem é "' + mention + '". Diga o nome da pessoa, por exemplo: "muda a pessoa do último para Marília".');
+    }
+    const changed = await setTransactionPerson(last.id, user.workspaceId, resolved.person.id);
+    if (!changed.ok) return sendReply("Não consegui trocar a pessoa desse lançamento.");
+    return sendReply("👤 Pessoa do último lançamento: " + changed.personName + (resolved.created ? " (nova)" : ""));
+  }
+
+  if (PERSON_CLEAR_RE.test(text)) {
+    const last = await getLastTransaction(user.id, user.workspaceId);
+    if (!last) return sendReply("Não encontrei nenhum lançamento recente.");
+    await setTransactionPerson(last.id, user.workspaceId, null);
+    return sendReply("Tirei a pessoa do último lançamento.");
+  }
+
+  if (PEOPLE_LIST_RE.test(text)) {
+    return sendReply(await answerPeopleList(user));
   }
 
   if (isReportRequest(text)) {

@@ -17,6 +17,16 @@ export const ExtractionSchema = z.object({
     .describe(
       "The merchant, brand or subject that best identifies what was bought, in the user's own words (e.g. 'Uber', 'pizza', 'Mercado Livre', 'academia'). Never a generic word like 'compra' or 'gasto'. null if the message names none.",
     ),
+  pessoa: z
+    .string()
+    .nullable()
+    .describe(
+      "The specific person (not the user) this entry is for or about, as a registered name when it matches the list given, otherwise as said. null when none is mentioned or it is the user's own spending.",
+    ),
+  relacao: z
+    .string()
+    .nullable()
+    .describe("The relation to the user if stated, e.g. 'esposa', 'filho', 'mae'. null otherwise."),
   conta: z
     .string()
     .nullable()
@@ -44,6 +54,8 @@ export const QuerySchema = z.object({
   categoria: z.string().nullable(),
   subcategoria: z.string().nullable(),
   conta: z.string().nullable(),
+  pessoa: z.string().nullable().describe("Registered person name (or relation) the question is about; null when none"),
+  por_pessoa: z.boolean().describe("true when the user asks for a breakdown per person ('por pessoa', 'quem gastou mais')"),
   descricao_periodo: z.string().describe("Short human label for the period, e.g. 'setembro de 2026', 'esta semana'"),
 });
 

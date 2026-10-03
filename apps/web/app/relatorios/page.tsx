@@ -9,6 +9,7 @@ type ReportData = {
   result: number;
   expenseByCategory: { name: string; total: number; percent: number; subs: { name: string; total: number }[] }[];
   incomeByCategory: { name: string; total: number }[];
+  expenseByPerson: { name: string; total: number }[];
   transactions: unknown[];
 };
 
@@ -130,6 +131,22 @@ export default async function RelatoriosPage({
                       </td>
                       <td style={{ textAlign: "right", color: "var(--muted)" }}>{c.percent.toFixed(1)}%</td>
                       <td style={{ textAlign: "right", paddingRight: 18, fontWeight: 600 }}>{formatBRL(c.total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {data.expenseByPerson.length > 0 && (
+            <div className="card" style={{ marginTop: 16, overflow: "hidden" }}>
+              <div style={{ padding: "14px 18px", fontWeight: 600, fontSize: 14 }}>Despesas por pessoa</div>
+              <table>
+                <tbody>
+                  {data.expenseByPerson.map((p) => (
+                    <tr key={p.name}>
+                      <td style={{ paddingLeft: 18, fontWeight: 500 }}>{p.name}</td>
+                      <td style={{ textAlign: "right", paddingRight: 18, fontWeight: 600 }}>{formatBRL(p.total)}</td>
                     </tr>
                   ))}
                 </tbody>

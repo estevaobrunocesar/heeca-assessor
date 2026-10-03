@@ -65,6 +65,22 @@ export async function buildXlsx(data: ReportData, workspaceName: string): Promis
     row.getCell(5).numFmt = BRL;
   }
 
+  // Por pessoa (only when something was attributed to someone)
+  if (data.expenseByPerson.length > 0) {
+    const people = wb.addWorksheet("Por pessoa");
+    people.columns = [
+      { header: "Pessoa", width: 26 },
+      { header: "Despesas", width: 16 },
+      { header: "% das despesas", width: 16 },
+    ];
+    styleHeader(people.getRow(1));
+    for (const p of data.expenseByPerson) {
+      const row = people.addRow([p.name, p.total, data.expense > 0 ? p.total / data.expense : 0]);
+      row.getCell(2).numFmt = BRL;
+      row.getCell(3).numFmt = "0.0%";
+    }
+  }
+
   // Lançamentos
   const tx = wb.addWorksheet("Lançamentos");
   tx.columns = [
@@ -73,6 +89,7 @@ export async function buildXlsx(data: ReportData, workspaceName: string): Promis
     { header: "Categoria", width: 24 },
     { header: "Subcategoria", width: 24 },
     { header: "Conta", width: 20 },
+    { header: "Pessoa", width: 18 },
     { header: "Tipo", width: 11 },
     { header: "Valor", width: 16 },
   ];
@@ -85,14 +102,15 @@ export async function buildXlsx(data: ReportData, workspaceName: string): Promis
       t.category ?? "",
       t.subcategory ?? "",
       t.account ?? "",
+      t.person ?? "",
       t.type === "INCOME" ? "Receita" : "Despesa",
       t.type === "INCOME" ? t.amount : -t.amount,
     ]);
     row.getCell(1).numFmt = "dd/mm/yyyy";
-    row.getCell(7).numFmt = BRL;
+    row.getCell(8).numFmt = BRL;
   }
   if (data.transactions.length > 0) {
-    tx.autoFilter = { from: "A1", to: `G${data.transactions.length + 1}` };
+    tx.autoFilter = { from: "A1", to: `H${data.transactions.length + 1}` };
   }
 
   return Buffer.from(await wb.xlsx.writeBuffer());

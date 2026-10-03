@@ -12,12 +12,14 @@ export type ReportData = {
   result: number;
   expenseByCategory: { name: string; total: number; percent: number; subs: { name: string; total: number }[] }[];
   incomeByCategory: { name: string; total: number }[];
+  expenseByPerson: { name: string; total: number }[];
   transactions: {
     date: Date;
     description: string;
     category: string | null;
     subcategory: string | null;
     account: string | null;
+    person: string | null;
     type: "INCOME" | "EXPENSE";
     amount: number;
   }[];
@@ -55,7 +57,7 @@ export async function getReportData(workspaceId: string, from: Date, to: Date, l
       type: { in: ["INCOME", "EXPENSE"] },
       date: { gte: from, lte: endOfDay(to) },
     },
-    include: { category: { include: { parent: true } }, account: true },
+    include: { category: { include: { parent: true } }, account: true, person: true },
     orderBy: [{ date: "asc" }, { createdAt: "asc" }],
   });
 
@@ -65,6 +67,7 @@ export async function getReportData(workspaceId: string, from: Date, to: Date, l
     category: t.category?.parent?.name ?? t.category?.name ?? null,
     subcategory: t.category?.parent ? t.category.name : null,
     account: t.account ? (t.account.bank ?? t.account.name) : null,
+    person: t.person?.name ?? null,
     type: t.type as "INCOME" | "EXPENSE",
     amount: Number(t.amount),
   }));
@@ -101,6 +104,14 @@ export async function getReportData(workspaceId: string, from: Date, to: Date, l
     result: income - expense,
     expenseByCategory: group("EXPENSE").map((c) => ({ ...c, percent: expense > 0 ? (c.total / expense) * 100 : 0 })),
     incomeByCategory: group("INCOME").map(({ name, total }) => ({ name, total })),
+    expenseByPerson: [
+      ...transactions
+        .filter((t) => t.type === "EXPENSE" && t.person)
+        .reduce((acc, t) => acc.set(t.person!, (acc.get(t.person!) ?? 0) + t.amount), new Map<string, number>())
+        .entries(),
+    ]
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, total]) => ({ name, total })),
     transactions,
   };
 }

@@ -35,6 +35,12 @@ Regras:
   (ex: "Uber", "pizza", "Mercado Livre", "academia"). Nunca uma palavra generica como "compra" ou "gasto".
   Null se a mensagem nao nomear nenhum. O estabelecimento e OPCIONAL: NUNCA pergunte por ele nem deixe de
   registrar um lancamento porque ele nao foi informado.
+- "pessoa": preencha SOMENTE se o gasto e claramente PARA ou DE uma pessoa especifica que nao e o proprio usuario
+  (ex: "presente pra Marilia", "mesada do Pedro", "remedio da minha mae", "escola do filho"). Se a mencao bater com
+  uma pessoa da lista de pessoas cadastradas (pelo nome ou pela relacao, ex: "minha esposa" -> "Marilia"), use
+  EXATAMENTE o nome da lista. Se nao estiver na lista, use o nome ou a relacao como foi dito e preencha "relacao"
+  quando ela for dita (esposa, filho, mae...). Nao e pessoa: o proprio usuario, lojas e marcas, "a familia", "a casa".
+  Na duvida, null — jantar "com" alguem nao e gasto dessa pessoa.
 - Se o usuario mencionar um banco, cartao ou conta especifica (ex: "no cartao Nubank", "da conta do Itau"),
   preencha "conta" com esse nome tal como dito. Se nao mencionar nenhuma conta, deixe "conta" como null —
   NAO assuma uma conta padrao, isso e resolvido fora da IA.
@@ -59,6 +65,12 @@ async function buildCategoryPrompt(workspaceId: string): Promise<string> {
   return `\n\nCategorias cadastradas (despesas):\n${formatGroup(expense)}\n\nCategorias cadastradas (receitas):\n${income.map((c) => c.name).join(", ")}`;
 }
 
+async function buildPeoplePrompt(workspaceId: string): Promise<string> {
+  const people = await prisma.person.findMany({ where: { workspaceId }, orderBy: { name: "asc" } });
+  if (people.length === 0) return "\n\nPessoas cadastradas: nenhuma ainda.";
+  return "\n\nPessoas cadastradas (nome — relacao):\n" + people.map((p) => p.name + (p.relation ? " — " + p.relation : "")).join("\n");
+}
+
 export async function transcribeAudio(audioBuffer: Buffer, filename: string): Promise<string> {
   const file = new File([audioBuffer], filename, { type: "audio/ogg" });
   const result = await openai.audio.transcriptions.create({
@@ -70,7 +82,7 @@ export async function transcribeAudio(audioBuffer: Buffer, filename: string): Pr
 }
 
 export async function extractTransaction(message: string, workspaceId: string): Promise<Extraction> {
-  const categoryPrompt = await buildCategoryPrompt(workspaceId);
+  const categoryPrompt = (await buildCategoryPrompt(workspaceId)) + (await buildPeoplePrompt(workspaceId));
 
   const completion = await openai.beta.chat.completions.parse({
     model: "gpt-4o-2024-08-06",
@@ -98,6 +110,8 @@ function cleanExtraction(parsed: Extraction): Extraction {
     categoria: nullIfEmpty(parsed.categoria),
     subcategoria: nullIfEmpty(parsed.subcategoria),
     estabelecimento: nullIfEmpty(parsed.estabelecimento),
+    pessoa: nullIfEmpty(parsed.pessoa),
+    relacao: nullIfEmpty(parsed.relacao),
     conta: nullIfEmpty(parsed.conta),
     // The merchant is optional. When amount and category are clear, a question
     // about it is the model being over-careful and must not hold up the entry.
@@ -228,10 +242,14 @@ Se for consulta:
 - Escolha "categoria"/"subcategoria" da lista cadastrada quando a pergunta citar um assunto (ex: "gasolina" ->
   Transporte > Combustivel). Prefira sempre a categoria mais especifica (ex: pizza -> Alimentacao > Delivery ou Restaurante) e
   evite "Outros" a menos que nada encaixe. Sem assunto especifico, deixe null.
-- "conta" so se a pessoa citou um banco/cartao/conta; senao null.`;
+- "conta" so se a pessoa citou um banco/cartao/conta; senao null.
+- "pessoa": se a pergunta e sobre uma pessoa especifica ("quanto gastei com a Marilia?", "gastos do Pedro", "com meu
+  filho"), use EXATAMENTE o nome da lista de pessoas cadastradas quando a mencao bater (pelo nome ou pela relacao).
+  Se a pergunta cita uma pessoa que NAO esta na lista, devolva o nome ou a relacao como foi dito (o sistema avisa que
+  ela nao existe) — nunca troque por null. Use null somente quando a pergunta nao e sobre uma pessoa. "por_pessoa" true quando pede o detalhamento por pessoa ("por pessoa", "quem gastou mais", "gastos de cada um").`;
 
 export async function interpretQuery(message: string, workspaceId: string, today: Date): Promise<Query> {
-  const categoryPrompt = await buildCategoryPrompt(workspaceId);
+  const categoryPrompt = (await buildCategoryPrompt(workspaceId)) + (await buildPeoplePrompt(workspaceId));
   const iso = today.toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
   const weekday = today.toLocaleDateString("pt-BR", { weekday: "long", timeZone: "America/Sao_Paulo" });
 
@@ -252,6 +270,7 @@ export async function interpretQuery(message: string, workspaceId: string, today
     categoria: nullIfEmpty(parsed.categoria),
     subcategoria: nullIfEmpty(parsed.subcategoria),
     conta: nullIfEmpty(parsed.conta),
+    pessoa: nullIfEmpty(parsed.pessoa),
   };
 }
 

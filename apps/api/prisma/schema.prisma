@@ -76,6 +76,7 @@ model Workspace {
   recurringRules RecurringRule[]
   bills          Bill[]
   categoryKeywords CategoryKeyword[]
+  people         Person[]
 }
 
 model User {
@@ -220,6 +221,9 @@ model Transaction {
   installmentGroupId String?
   /// Set on rows created by a file import, so the whole import can be undone.
   importBatchId String?
+  /// Who the entry is for or about (spouse, child...), when it is not the account owner.
+  personId      String?
+  person        Person?   @relation(fields: [personId], references: [id])
 
   origin          TransactionOrigin
   originalMessage String?
@@ -232,6 +236,23 @@ model Transaction {
   aiLogs          AiInteractionLog[]
 
   @@index([importBatchId])
+  @@index([personId])
+}
+
+/// Someone close to the account owner whom entries can be attributed to
+/// ("presente pra Marília", "mesada do Pedro"). Not a login: people live
+/// inside one workspace, which stays isolated from every other.
+model Person {
+  id          String    @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  name        String
+  relation    String?
+  createdAt   DateTime  @default(now())
+
+  transactions Transaction[]
+
+  @@unique([workspaceId, name])
 }
 
 /// A word or phrase that decides a category deterministically, ahead of the

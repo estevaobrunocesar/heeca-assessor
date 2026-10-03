@@ -72,10 +72,11 @@ export type PeriodReportParams = {
   categoryIds?: string[];
   breakdownBySubcategory?: boolean;
   accountId?: string;
+  personId?: string;
 };
 
 export async function getPeriodReport(params: PeriodReportParams) {
-  const { workspaceId, userId, from, to, type, categoryIds, breakdownBySubcategory, accountId } = params;
+  const { workspaceId, userId, from, to, type, categoryIds, breakdownBySubcategory, accountId, personId } = params;
 
   const transactions = await prisma.transaction.findMany({
     where: {
@@ -86,8 +87,9 @@ export async function getPeriodReport(params: PeriodReportParams) {
       type: type === "DESPESA" ? "EXPENSE" : type === "RECEITA" ? "INCOME" : { in: ["INCOME", "EXPENSE"] },
       ...(categoryIds ? { categoryId: { in: categoryIds } } : {}),
       ...(accountId ? { accountId } : {}),
+      ...(personId ? { personId } : {}),
     },
-    include: { category: { include: { parent: true } } },
+    include: { category: { include: { parent: true } }, person: true },
     orderBy: { date: "desc" },
   });
 
@@ -104,6 +106,14 @@ export async function getPeriodReport(params: PeriodReportParams) {
       : (t.category?.parent?.name ?? t.category?.name ?? "Sem categoria");
     groups.set(name, (groups.get(name) ?? 0) + Number(t.amount));
   }
+  const people = new Map<string, number>();
+  for (const t of transactions) {
+    if (t.type !== "EXPENSE") continue;
+    const name = t.person?.name ?? "Sem pessoa";
+    people.set(name, (people.get(name) ?? 0) + Number(t.amount));
+  }
+  const byPerson = [...people.entries()].sort((a, b) => b[1] - a[1]).map(([name, total]) => ({ name, total }));
+
   const breakdown = [...groups.entries()].sort((a, b) => b[1] - a[1]).map(([name, total]) => ({ name, total }));
 
   return {
@@ -111,6 +121,7 @@ export async function getPeriodReport(params: PeriodReportParams) {
     expense,
     count: transactions.length,
     breakdown,
+    byPerson,
     recent: transactions.slice(0, 3).map((t) => ({
       date: t.date,
       description: t.description,

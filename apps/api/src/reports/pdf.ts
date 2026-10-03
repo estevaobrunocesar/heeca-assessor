@@ -140,6 +140,24 @@ export function buildPdf(data: ReportData, workspaceName: string): Promise<Buffe
       doc.y += 14;
     }
 
+    // Spending by person
+    if (data.expenseByPerson.length > 0) {
+      section("Despesas por pessoa");
+      const cols: Column[] = [
+        { label: "Pessoa", width: pageWidth - 120 },
+        { label: "Valor", width: 120, align: "right" },
+      ];
+      drawHeader(cols);
+      for (const p of data.expenseByPerson) {
+        if (doc.y + 18 > bottom()) {
+          doc.addPage();
+          drawHeader(cols);
+        }
+        drawRow(cols, [p.name, brl(p.total)]);
+      }
+      doc.y += 14;
+    }
+
     // Transactions
     section(`Lançamentos (${data.transactions.length})`);
     if (data.transactions.length === 0) {

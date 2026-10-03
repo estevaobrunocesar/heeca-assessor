@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { apiFetch } from "../../lib/api";
 import { DeleteTransactionButton } from "../components/DeleteTransactionButton";
 import { CategoryCell, type ChangeCategoryResult } from "../components/CategoryCell";
+import { PersonCell, type ChangePersonResult } from "../components/PersonCell";
 
 type Transaction = {
   id: string;
@@ -15,6 +16,8 @@ type Transaction = {
   category: { name: string } | null;
   user: { name: string };
   account: { name: string } | null;
+  personId: string | null;
+  person: { name: string } | null;
   isInstallment: boolean;
   installmentTotal: number | null;
 };
@@ -62,6 +65,15 @@ async function changeCategory(id: string, categoryId: string): Promise<ChangeCat
   revalidatePath("/lancamentos");
   revalidatePath("/");
   return { ok: true, learnedKeyword };
+}
+
+async function changePerson(id: string, personId: string | null): Promise<ChangePersonResult> {
+  "use server";
+  const res = await apiFetch(`/api/transactions/${id}`, { method: "PATCH", body: JSON.stringify({ personId }) });
+  if (!res.ok) return { ok: false };
+  revalidatePath("/lancamentos");
+  revalidatePath("/pessoas");
+  return { ok: true };
 }
 
 async function getCategories() {
@@ -133,6 +145,7 @@ export default async function LancamentosPage({
               <th style={{ paddingTop: 16 }}>Descrição</th>
               <th style={{ paddingTop: 16 }}>Categoria</th>
               <th style={{ paddingTop: 16 }}>Conta</th>
+              <th style={{ paddingTop: 16 }}>Pessoa</th>
               <th style={{ paddingTop: 16 }}>Tipo</th>
               <th style={{ textAlign: "right", paddingTop: 16 }}>Valor</th>
               <th style={{ paddingRight: 18, paddingTop: 16 }}></th>
@@ -162,6 +175,13 @@ export default async function LancamentosPage({
                     )}
                   </td>
                   <td style={{ color: "var(--muted)" }}>{t.account?.name ?? "—"}</td>
+                  <td style={{ color: "var(--muted)" }}>
+                    {t.type === "INCOME" || t.type === "EXPENSE" ? (
+                      <PersonCell id={t.id} personId={t.personId} personName={t.person?.name ?? null} action={changePerson} />
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                   <td>
                     <span className={`pill ${meta.pill}`}>
                       <Icon size={12} />
@@ -190,7 +210,7 @@ export default async function LancamentosPage({
             })}
             {transactions.length === 0 && (
               <tr>
-                <td colSpan={7} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>
+                <td colSpan={8} style={{ textAlign: "center", color: "var(--muted)", padding: 32 }}>
                   Nenhum lançamento encontrado.
                 </td>
               </tr>
