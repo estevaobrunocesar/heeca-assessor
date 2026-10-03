@@ -13,6 +13,12 @@ enum UserRole {
   USER
 }
 
+enum ReportEmailFrequency {
+  NONE
+  WEEKLY
+  MONTHLY
+}
+
 enum UserStatus {
   ACTIVE
   INACTIVE
@@ -107,6 +113,11 @@ model User {
   mfaRecoveryHashes String[]  @default([])
   mfaFailedAttempts Int       @default(0)
   mfaLockedUntil    DateTime?
+
+  // Periodic report by e-mail: off until the person opts in. The key names the last period
+  // already sent ("W:2026-09-28" / "M:2026-09"), which makes the daily job idempotent.
+  reportEmailFrequency ReportEmailFrequency @default(NONE)
+  reportEmailLastKey   String?
 
   pendingConfirmation PendingConfirmation?
   bills               Bill[]

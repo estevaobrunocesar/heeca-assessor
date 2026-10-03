@@ -28,3 +28,16 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string) {
     `,
   });
 }
+
+export async function sendReportEmail(
+  to: string,
+  message: { subject: string; html: string; attachments: { filename: string; content: Buffer }[] },
+) {
+  if (!client) {
+    throw new Error("RESEND_API_KEY is not configured");
+  }
+
+  // The SDK reports failures as { error } instead of throwing; surface them so callers can retry.
+  const { error } = await client.emails.send({ from: fromAddress, to, ...message });
+  if (error) throw new Error(`Resend: ${error.message}`);
+}

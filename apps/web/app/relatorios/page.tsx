@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { FileText, FileSpreadsheet } from "lucide-react";
 import { apiFetch } from "../../lib/api";
+import { ReportEmailCard } from "../components/ReportEmailCard";
 
 type ReportData = {
   label: string;
@@ -66,6 +67,8 @@ export default async function RelatoriosPage({
           Resumo do período e arquivos para baixar. Também dá para pedir pelo WhatsApp: &quot;me manda o relatório de setembro em PDF&quot;.
         </p>
       </div>
+
+      <ReportEmailCard />
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 20 }}>
         {PRESETS.map((p) => (

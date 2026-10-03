@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import rateLimit from "express-rate-limit";
 import cron from "node-cron";
+import { runReportEmails } from "./reports/emailReport";
 import { handleIncomingWhatsapp } from "./gateway/whatsapp";
 import { verifyTwilioSignature } from "./gateway/twilioAuth";
 import { dashboardRouter } from "./routes/dashboard";
@@ -85,5 +86,15 @@ cron.schedule("0 7 * * *", async () => {
     if (count > 0) console.log(`Generated ${count} recurring transaction(s).`);
   } catch (err) {
     console.error("Error generating recurring transactions:", err);
+  }
+});
+
+// Daily at 08:00 server time — periodic report e-mails for people who opted in.
+cron.schedule("0 8 * * *", async () => {
+  try {
+    const count = await runReportEmails();
+    if (count > 0) console.log(`Sent ${count} report e-mail(s).`);
+  } catch (err) {
+    console.error("Error sending report e-mails:", err);
   }
 });
