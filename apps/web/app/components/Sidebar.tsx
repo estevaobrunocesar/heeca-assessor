@@ -12,6 +12,7 @@ import {
   Tag,
   BarChart3,
   Target,
+  PiggyBank,
   Users,
   Settings,
 } from "lucide-react";
@@ -27,6 +28,7 @@ const LINKS = [
   { href: "/pessoas", label: "Pessoas", icon: UserRound },
   { href: "/relatorios", label: "Relatórios", icon: BarChart3 },
   { href: "/planejamento", label: "Planejamento", icon: Target },
+  { href: "/metas", label: "Metas", icon: PiggyBank },
   { href: "/admin/usuarios", label: "Usuários", icon: Users },
   { href: "/configuracoes", label: "Configurações", icon: Settings },
 ];

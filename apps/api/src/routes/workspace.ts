@@ -8,7 +8,7 @@ export const workspaceRouter = Router();
 workspaceRouter.get("/export", requireAdmin, async (req, res) => {
   const workspaceId = req.auth!.workspaceId;
 
-  const [workspace, users, accounts, categories, transactions, budgets, recurringRules, bills, categoryKeywords, people] = await Promise.all([
+  const [workspace, users, accounts, categories, transactions, budgets, recurringRules, bills, categoryKeywords, people, savingsGoals] = await Promise.all([
     prisma.workspace.findUniqueOrThrow({ where: { id: workspaceId } }),
     prisma.user.findMany({
       where: { workspaceId },
@@ -22,10 +22,11 @@ workspaceRouter.get("/export", requireAdmin, async (req, res) => {
     prisma.bill.findMany({ where: { workspaceId } }),
     prisma.categoryKeyword.findMany({ where: { workspaceId } }),
     prisma.person.findMany({ where: { workspaceId } }),
+    prisma.savingsGoal.findMany({ where: { workspaceId }, include: { contributions: true } }),
   ]);
 
   res.setHeader("Content-Disposition", `attachment; filename="meu-assessor-export-${workspaceId}.json"`);
-  res.json({ exportedAt: new Date().toISOString(), workspace, users, accounts, categories, transactions, budgets, recurringRules, bills, categoryKeywords, people });
+  res.json({ exportedAt: new Date().toISOString(), workspace, users, accounts, categories, transactions, budgets, recurringRules, bills, categoryKeywords, people, savingsGoals });
 });
 
 /**
@@ -46,6 +47,8 @@ workspaceRouter.delete("/", requireAdmin, async (req, res) => {
     prisma.aiInteractionLog.deleteMany({ where: { workspaceId } }),
     prisma.transaction.deleteMany({ where: { workspaceId } }),
     prisma.person.deleteMany({ where: { workspaceId } }),
+    prisma.goalContribution.deleteMany({ where: { workspaceId } }),
+    prisma.savingsGoal.deleteMany({ where: { workspaceId } }),
     prisma.recurringRule.deleteMany({ where: { workspaceId } }),
     prisma.bill.deleteMany({ where: { workspaceId } }),
     prisma.categoryKeyword.deleteMany({ where: { workspaceId } }),

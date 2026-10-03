@@ -12,6 +12,7 @@ import { commitImport, latestImportBatch, undoImport, type StagedImport } from "
 import { readAndStageDocument, summarizeStaged } from "./importFile";
 import { sendWhatsapp } from "./outbound";
 import { answerPeopleList, PEOPLE_LIST_RE } from "./people";
+import { answerGoalList, GOALS_LIST_RE, handleGoalContribution } from "./goals";
 import { resolvePerson } from "../financial/people";
 import { parseDay } from "../financial/bills";
 import { todayInBrazil } from "../financial/invoices";
@@ -458,6 +459,10 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
     await setTransactionPerson(last.id, user.workspaceId, null);
     return sendReply("Tirei a pessoa do último lançamento.");
   }
+
+  const goalReply = await handleGoalContribution(text, user);
+  if (goalReply) return sendReply(goalReply);
+  if (GOALS_LIST_RE.test(text)) return sendReply(await answerGoalList(text, user));
 
   if (PEOPLE_LIST_RE.test(text)) {
     return sendReply(await answerPeopleList(user));
