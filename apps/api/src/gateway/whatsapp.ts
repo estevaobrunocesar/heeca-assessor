@@ -201,6 +201,12 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
       );
     }
 
+    if (result.type === "TRANSFER") {
+      return deliver(
+        `🔁 Transferência registrada!\nR$ ${result.amount.toFixed(2)}\nDe: ${result.accountName} → Para: ${result.toAccountName}\nNão conta como despesa nem como receita.`,
+      );
+    }
+
     const emoji = extraction.tipo === "RECEITA" ? "💰" : "💸";
     const accountLine = result.accountName ? `\nConta: ${result.accountName}` : "";
     // The category actually stored, which a learned/known keyword may have
@@ -350,6 +356,7 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
             pessoa: null,
             relacao: null,
             conta: accountName,
+            conta_destino: null,
             data_relativa: dateOk ? line.data : "hoje",
             recorrente: false,
             parcelado: false,

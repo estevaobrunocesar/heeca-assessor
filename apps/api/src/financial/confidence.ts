@@ -24,5 +24,7 @@ export function shouldAutoConfirm(extraction: Extraction): boolean {
   // Placeholder: currently trusts the AI's own judgment call via
   // pergunta_esclarecimento, with no extra threshold on top. Replace with
   // the policy described above.
-  return extraction.pergunta_esclarecimento === null && extraction.valor !== null && extraction.categoria !== null;
+  // A transfer between the person's own accounts has no category to ask about.
+  const needsCategory = extraction.tipo !== "TRANSFERENCIA";
+  return extraction.pergunta_esclarecimento === null && extraction.valor !== null && (!needsCategory || extraction.categoria !== null);
 }

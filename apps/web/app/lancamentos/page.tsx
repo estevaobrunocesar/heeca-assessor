@@ -16,6 +16,7 @@ type Transaction = {
   category: { name: string } | null;
   user: { name: string };
   account: { name: string } | null;
+  toAccount: { name: string } | null;
   personId: string | null;
   person: { name: string } | null;
   isInstallment: boolean;
@@ -86,6 +87,7 @@ const TABS = [
   { type: "", label: "Todos" },
   { type: "INCOME", label: "Receitas" },
   { type: "EXPENSE", label: "Despesas" },
+  { type: "TRANSFER", label: "Transferências" },
 ];
 
 export default async function LancamentosPage({
@@ -157,6 +159,7 @@ export default async function LancamentosPage({
               const Icon = meta.icon;
               const amount = Number(t.amount);
               const isNegative = t.type === "EXPENSE" || (t.type === "ADJUSTMENT" && amount < 0);
+              const isTransfer = t.type === "TRANSFER"; // moves money between own accounts: neither income nor spending
               return (
                 <tr key={t.id}>
                   <td style={{ paddingLeft: 18, color: "var(--muted)" }}>{formatDate(t.date)}</td>
@@ -174,7 +177,9 @@ export default async function LancamentosPage({
                       (t.category?.name ?? "—")
                     )}
                   </td>
-                  <td style={{ color: "var(--muted)" }}>{t.account?.name ?? "—"}</td>
+                  <td style={{ color: "var(--muted)" }}>
+                    {t.type === "TRANSFER" ? `${t.account?.name ?? "—"} → ${t.toAccount?.name ?? "—"}` : (t.account?.name ?? "—")}
+                  </td>
                   <td style={{ color: "var(--muted)" }}>
                     {t.type === "INCOME" || t.type === "EXPENSE" ? (
                       <PersonCell id={t.id} personId={t.personId} personName={t.person?.name ?? null} action={changePerson} />
@@ -192,10 +197,10 @@ export default async function LancamentosPage({
                     style={{
                       textAlign: "right",
                       fontWeight: 600,
-                      color: isNegative ? "var(--red)" : "var(--green)",
+                      color: isTransfer ? "var(--muted)" : isNegative ? "var(--red)" : "var(--green)",
                     }}
                   >
-                    {isNegative ? "- " : "+ "}
+                    {isTransfer ? "" : isNegative ? "- " : "+ "}
                     {formatBRL(Math.abs(amount))}
                   </td>
                   <td style={{ paddingRight: 18, textAlign: "right" }}>

@@ -25,7 +25,7 @@ transactionsRouter.get("/", async (req, res) => {
   const [transactions, total] = await Promise.all([
     prisma.transaction.findMany({
       where,
-      include: { category: true, user: true, account: true, person: true },
+      include: { category: true, user: true, account: true, toAccount: true, person: true },
       orderBy: { date: "desc" },
       take,
       skip,

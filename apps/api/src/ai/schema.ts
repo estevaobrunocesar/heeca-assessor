@@ -31,6 +31,10 @@ export const ExtractionSchema = z.object({
     .string()
     .nullable()
     .describe("Bank/account mention if the user named one (e.g. 'Itaú', 'cartão Nubank'), otherwise null"),
+  conta_destino: z
+    .string()
+    .nullable()
+    .describe("Only for TRANSFERENCIA between the user's own accounts: the account the money went TO (e.g. 'poupança'). null otherwise."),
   data_relativa: z.string().describe("e.g. 'hoje', 'ontem', 'sabado', or an ISO date if explicit"),
   recorrente: z.boolean(),
   parcelado: z.boolean(),

@@ -9,6 +9,7 @@ import { resolvePerson } from "./people";
 import { shouldAutoConfirm } from "./confidence";
 import { findAccountByMention, getDefaultAccount } from "./accounts";
 import { reopenBillsPaidBy } from "./bills";
+import { registerTransfer } from "./transfers";
 import { randomUUID } from "node:crypto";
 import type { TransactionOrigin } from "@prisma/client";
 
@@ -23,6 +24,8 @@ export type RegisterResult =
       kind: "registered";
       transactionId: string;
       accountName: string | null;
+      /** Only for transfers: the account the money arrived at. */
+      toAccountName?: string | null;
       categoryId: string | null;
       categoryLabel: string | null;
       amount: number;
@@ -59,6 +62,9 @@ export async function registerFromExtraction(params: {
     };
   }
 
+  // Between two of the person's own accounts: needs both ends, and moves balances without counting as spending.
+  if (type === "TRANSFER") return registerTransfer({ userId, workspaceId, extraction, origin, originalMessage, receivedAt });
+
   let account = extraction.conta
     ? await findAccountByMention(extraction.conta, workspaceId)
     : await getDefaultAccount(workspaceId);
@@ -76,7 +82,7 @@ export async function registerFromExtraction(params: {
   // relation creates the person (and the reply says so, so a wrong guess is
   // easy to spot and fix).
   const resolvedPerson =
-    extraction.pessoa && type !== "TRANSFER" ? await resolvePerson(extraction.pessoa, extraction.relacao, workspaceId) : null;
+    extraction.pessoa ? await resolvePerson(extraction.pessoa, extraction.relacao, workspaceId) : null;
 
   // Paying a card's invoice isn't new spending — the purchases were already
   // counted when made. Stored as a positive adjustment (same as the

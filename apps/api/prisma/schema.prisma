@@ -196,6 +196,7 @@ model Account {
   createdAt  DateTime    @default(now())
 
   transactions   Transaction[]
+  incomingTransfers Transaction[] @relation("TransferTo")
   recurringRules RecurringRule[]
   bills          Bill[]
 }
@@ -240,6 +241,9 @@ model Transaction {
   category        Category?          @relation(fields: [categoryId], references: [id])
   accountId       String?
   account         Account?           @relation(fields: [accountId], references: [id])
+  // Only for TRANSFER: the account the money went to (accountId is the one it left).
+  toAccountId     String?
+  toAccount       Account?           @relation("TransferTo", fields: [toAccountId], references: [id])
 
   paymentMethod   String?
   merchant        String?

@@ -22,8 +22,12 @@ lancamento financeiro estruturado.
 
 Regras:
 - NUNCA invente um valor, categoria ou data que nao esteja implicito na mensagem.
-- Se a mensagem descrever uma transferencia entre contas/pessoas (ex: "passei 500 da corrente pra poupanca",
-  "minha esposa me passou 500"), classifique como TRANSFERENCIA, nao DESPESA nem RECEITA.
+- TRANSFERENCIA e SOMENTE dinheiro que muda de uma conta do proprio usuario para outra conta dele (ex: "passei 500 da
+  corrente pra poupanca", "mandei 300 pro cofrinho"). Nesse caso preencha "conta" com a conta de ORIGEM e
+  "conta_destino" com a conta de DESTINO, e nao e DESPESA nem RECEITA.
+- Dinheiro que vem de ou vai para OUTRA PESSOA (ex: "minha esposa me passou 500", "passei 200 pro Joao", "pix de 80
+  pra minha mae") NAO e transferencia interna: e RECEITA (entrou) ou DESPESA (saiu), na categoria de
+  transferencias, com a pessoa em "pessoa".
 - Se o valor ou a categoria estiver ambiguo, defina confianca baixa (<0.7) e preencha
   "pergunta_esclarecimento" com uma pergunta objetiva para o usuario.
 - "data_relativa" deve conter a referencia temporal tal como dita (hoje, ontem, sabado passado, etc),
