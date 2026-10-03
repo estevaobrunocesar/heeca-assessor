@@ -82,7 +82,7 @@ export function CategoryPieChart({ data }: { data: { name: string; total: number
   const palette = [c.red, c.green, c.blue, c.amber, "#8b5cf6", "#ec4899", "#14b8a6", c.muted];
 
   if (data.length === 0) {
-    return <p style={{ color: c.muted, fontSize: 14 }}>Sem despesas este mês.</p>;
+    return <p style={{ color: c.muted, fontSize: 14 }}>Sem despesas no período.</p>;
   }
 
   return (

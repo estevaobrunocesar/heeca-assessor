@@ -1,5 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { Trash2, UserRound } from "lucide-react";
+import Link from "next/link";
 import { apiFetch } from "../../lib/api";
 import { ConfirmButton } from "../components/ConfirmButton";
 
@@ -81,7 +82,9 @@ export default async function PeoplePage() {
                 <UserRound size={18} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600 }}>{p.name}</div>
+                <Link href={`/pessoas/${p.id}`} style={{ fontWeight: 600, color: "inherit" }} title="Ver o painel desta pessoa">
+                  {p.name}
+                </Link>
                 <div style={{ fontSize: 12, color: "var(--muted)" }}>{p.relation && p.relation.toLowerCase() !== p.name.toLowerCase() ? p.relation : "sem relação"}</div>
               </div>
               <ConfirmButton
@@ -98,6 +101,9 @@ export default async function PeoplePage() {
             <div style={{ fontSize: 12, color: "var(--muted)" }}>
               neste mês · {p.monthCount} lançamento(s) · {p.totalCount} no total
             </div>
+            <Link href={`/pessoas/${p.id}`} style={{ fontSize: 12, color: "var(--primary)" }}>
+              Ver painel →
+            </Link>
 
             <form action={updatePerson} style={{ display: "flex", gap: 6, marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--card-border)" }}>
               <input type="hidden" name="id" value={p.id} />

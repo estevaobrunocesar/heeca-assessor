@@ -28,6 +28,14 @@ async function getAccounts(): Promise<Account[]> {
   return res.json();
 }
 
+type PersonSpend = { id: string; name: string; monthTotal: number };
+
+async function getPeopleSpend(): Promise<PersonSpend[]> {
+  const res = await apiFetch("/api/people");
+  if (!res.ok) return [];
+  return res.json();
+}
+
 type PendingBill = { amount: number; state: "VENCIDA" | "HOJE" | "A_VENCER" | null };
 
 async function getPendingBills(): Promise<PendingBill[]> {
@@ -41,7 +49,9 @@ function formatBRL(value: number) {
 }
 
 export default async function DashboardPage() {
-  const [summary, trend, accounts, bills] = await Promise.all([getSummary(), getTrend(), getAccounts(), getPendingBills()]);
+  const [summary, trend, accounts, bills, people] = await Promise.all([getSummary(), getTrend(), getAccounts(), getPendingBills(), getPeopleSpend()]);
+  const bySpend = people.filter((p) => p.monthTotal > 0).sort((a, b) => b.monthTotal - a.monthTotal);
+  const peopleMax = bySpend[0]?.monthTotal ?? 0;
   const overdueBills = bills.filter((b) => b.state === "VENCIDA");
   const billsTotal = bills.reduce((sum, b) => sum + b.amount, 0);
   const overdueTotal = overdueBills.reduce((sum, b) => sum + b.amount, 0);
@@ -173,6 +183,26 @@ export default async function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {bySpend.length > 0 && (
+        <div className="card" style={{ padding: 20, marginTop: 16 }}>
+          <h2 style={{ fontSize: 15 }}>Gastos por pessoa</h2>
+          <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 2 }}>Este mês · clique para ver o painel de cada um</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 14 }}>
+            {bySpend.map((p) => (
+              <Link key={p.id} href={`/pessoas/${p.id}`} style={{ color: "inherit", textDecoration: "none" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                  <span>{p.name}</span>
+                  <strong>{formatBRL(p.monthTotal)}</strong>
+                </div>
+                <div style={{ height: 6, borderRadius: 3, background: "var(--field-bg)", marginTop: 4 }}>
+                  <div style={{ width: `${(p.monthTotal / peopleMax) * 100}%`, height: "100%", borderRadius: 3, background: "var(--primary)" }} />
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </main>
   );
 }
