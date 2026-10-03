@@ -36,6 +36,13 @@ async function getPeopleSpend(): Promise<PersonSpend[]> {
   return res.json();
 }
 
+type GoalStatus = { name: string; state: string; behind: boolean; daysLeft: number | null };
+
+async function getGoalStatuses(): Promise<GoalStatus[]> {
+  const res = await apiFetch("/api/goals");
+  return res.ok ? res.json() : [];
+}
+
 type PendingBill = { amount: number; state: "VENCIDA" | "HOJE" | "A_VENCER" | null };
 
 async function getPendingBills(): Promise<PendingBill[]> {
@@ -49,7 +56,8 @@ function formatBRL(value: number) {
 }
 
 export default async function DashboardPage() {
-  const [summary, trend, accounts, bills, people] = await Promise.all([getSummary(), getTrend(), getAccounts(), getPendingBills(), getPeopleSpend()]);
+  const [summary, trend, accounts, bills, people, goals] = await Promise.all([getSummary(), getTrend(), getAccounts(), getPendingBills(), getPeopleSpend(), getGoalStatuses()]);
+  const goalAlerts = goals.filter((g) => g.behind || g.state === "VENCIDA" || (g.state === "COM_PRAZO" && g.daysLeft !== null && g.daysLeft <= 7));
   const bySpend = people.filter((p) => p.monthTotal > 0).sort((a, b) => b.monthTotal - a.monthTotal);
   const peopleMax = bySpend[0]?.monthTotal ?? 0;
   const overdueBills = bills.filter((b) => b.state === "VENCIDA");
@@ -83,6 +91,17 @@ export default async function DashboardPage() {
           </p>
         </div>
       </div>
+
+      {goalAlerts.length > 0 && (
+        <Link href="/metas" className="card" style={{ display: "block", padding: "14px 18px", marginTop: 20, color: "inherit", textDecoration: "none", borderColor: "var(--red)" }}>
+          <strong style={{ fontSize: 14, color: "var(--red)" }}>
+            {goalAlerts.length} meta{goalAlerts.length === 1 ? "" : "s"} de economia pedindo atenção
+          </strong>
+          <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>
+            {goalAlerts.map((g) => `${g.name} (${g.state === "VENCIDA" ? "vencida" : g.behind ? "atrasada" : "vence em breve"})`).join(" · ")}
+          </div>
+        </Link>
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 16, marginTop: 24 }}>
         {cards.map((c) => {

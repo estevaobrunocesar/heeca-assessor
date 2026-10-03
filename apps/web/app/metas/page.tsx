@@ -14,6 +14,9 @@ type Goal = {
   state: "CONCLUIDA" | "VENCIDA" | "COM_PRAZO" | "SEM_PRAZO";
   monthlyNeeded: number | null;
   monthsLeft: number | null;
+  daysLeft: number | null;
+  expectedSoFar: number | null;
+  behind: boolean;
   history: { id: string; amount: number; note: string | null; createdAt: string; by: string }[];
 };
 
@@ -40,6 +43,17 @@ function parseMoney(raw: FormDataEntryValue | null): number {
   const text = String(raw ?? "").trim().replace(/[R$\s]/g, "");
   if (!text) return NaN;
   return Number(text.includes(",") ? text.replace(/\./g, "").replace(",", ".") : text);
+}
+
+async function getAlertSettings(): Promise<{ enabled: boolean; email: string } | null> {
+  const res = await apiFetch("/api/goals/alerts");
+  return res.ok ? res.json() : null;
+}
+
+async function setAlerts(formData: FormData) {
+  "use server";
+  await apiFetch("/api/goals/alerts", { method: "PUT", body: JSON.stringify({ enabled: formData.get("enabled") === "true" }) });
+  revalidatePath("/metas");
 }
 
 async function createGoal(formData: FormData) {
@@ -76,6 +90,12 @@ async function deleteGoal(formData: FormData) {
 function statusLine(g: Goal) {
   if (g.state === "CONCLUIDA") return { text: "Meta concluída! 🎉", color: "var(--green)" };
   if (g.state === "VENCIDA") return { text: `Prazo venceu em ${formatDay(g.deadline!)} · faltam ${formatBRL(g.remaining)}`, color: "var(--red)" };
+  if (g.state === "COM_PRAZO" && g.behind) {
+    return {
+      text: `Atrasada: o esperado até hoje era ${formatBRL(g.expectedSoFar ?? 0)}. Até ${formatDay(g.deadline!)}, guarde ${formatBRL(g.monthlyNeeded ?? 0)} por mês`,
+      color: "var(--red)",
+    };
+  }
   if (g.state === "COM_PRAZO") {
     return {
       text: `Até ${formatDay(g.deadline!)}: guarde ${formatBRL(g.monthlyNeeded ?? 0)} por mês (${g.monthsLeft} ${g.monthsLeft === 1 ? "mês" : "meses"})`,
@@ -86,7 +106,7 @@ function statusLine(g: Goal) {
 }
 
 export default async function GoalsPage() {
-  const goals = await getGoals();
+  const [goals, alerts] = await Promise.all([getGoals(), getAlertSettings()]);
   const totalSaved = goals.reduce((s, g) => s + g.saved, 0);
 
   return (
@@ -103,15 +123,31 @@ export default async function GoalsPage() {
         </p>
       )}
 
+      {alerts && (
+        <form action={setAlerts} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 14, fontSize: 13, color: "var(--muted)" }}>
+          <input type="hidden" name="enabled" value={alerts.enabled ? "false" : "true"} />
+          <span>
+            Alertas por e-mail (meta atrasada, prazo perto ou vencido) para <strong style={{ color: "var(--ink)" }}>{alerts.email}</strong>:{" "}
+            <strong style={{ color: alerts.enabled ? "var(--green)" : "var(--ink)" }}>{alerts.enabled ? "ligados" : "desligados"}</strong>
+          </span>
+          <button type="submit" className="btn btn-ghost" style={{ fontSize: 12, padding: "4px 10px" }}>
+            {alerts.enabled ? "Desligar" : "Ligar"}
+          </button>
+        </form>
+      )}
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 16, marginTop: 20 }}>
         {goals.map((g) => {
           const status = statusLine(g);
-          const barColor = g.state === "CONCLUIDA" ? "var(--green)" : g.state === "VENCIDA" ? "var(--red)" : "var(--primary)";
+          const barColor = g.state === "CONCLUIDA" ? "var(--green)" : g.state === "VENCIDA" || g.behind ? "var(--red)" : "var(--blue)";
           return (
             <div key={g.id} className="card" style={{ padding: 18 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <PiggyBank size={18} color={barColor} />
                 <strong style={{ fontSize: 15, flex: 1 }}>{g.name}</strong>
+                {g.behind && <span className="pill pill-red">Atrasada</span>}
+                {g.state === "VENCIDA" && <span className="pill pill-red">Vencida</span>}
+                {g.state === "COM_PRAZO" && !g.behind && g.daysLeft !== null && g.daysLeft <= 7 && <span className="pill pill-muted">Vence em breve</span>}
                 <ConfirmButton
                   action={deleteGoal}
                   id={g.id}

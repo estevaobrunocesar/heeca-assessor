@@ -31,9 +31,10 @@ export function parseBrlAmount(raw: string): number {
 
 function goalLine(g: GoalView): string {
   const bar = `${g.percent.toFixed(0)}%`;
-  const head = `${g.state === "CONCLUIDA" ? "🎉" : "🎯"} ${g.name} — ${brl(g.saved)} de ${brl(g.target)} (${bar})`;
+  const head = `${g.state === "CONCLUIDA" ? "🎉" : g.behind || g.state === "VENCIDA" ? "⚠️" : "🎯"} ${g.name} — ${brl(g.saved)} de ${brl(g.target)} (${bar})`;
   if (g.state === "CONCLUIDA") return `${head} · concluída!`;
   const parts = [`faltam ${brl(g.remaining)}`];
+  if (g.behind) parts.push(`atrasada: o esperado até hoje era ${brl(g.expectedSoFar ?? 0)}`);
   if (g.state === "VENCIDA") parts.push(`prazo venceu em ${dmy(g.deadline!)}`);
   else if (g.deadline) parts.push(`até ${dmy(g.deadline)}: guarde ${brl(g.monthlyNeeded ?? 0)}/mês`);
   return `${head}\n   ${parts.join(" · ")}`;

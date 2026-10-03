@@ -3,6 +3,7 @@ import express from "express";
 import rateLimit from "express-rate-limit";
 import cron from "node-cron";
 import { runReportEmails } from "./reports/emailReport";
+import { runGoalAlerts } from "./financial/goalAlerts";
 import { handleIncomingWhatsapp } from "./gateway/whatsapp";
 import { verifyTwilioSignature } from "./gateway/twilioAuth";
 import { dashboardRouter } from "./routes/dashboard";
@@ -100,5 +101,15 @@ cron.schedule("0 8 * * *", async () => {
     if (count > 0) console.log(`Sent ${count} report e-mail(s).`);
   } catch (err) {
     console.error("Error sending report e-mails:", err);
+  }
+});
+
+// Daily at 09:00 server time — e-mail alerts for savings goals that are late, near or past their deadline.
+cron.schedule("0 9 * * *", async () => {
+  try {
+    const count = await runGoalAlerts();
+    if (count > 0) console.log(`Sent ${count} goal alert(s).`);
+  } catch (err) {
+    console.error("Error sending goal alerts:", err);
   }
 });

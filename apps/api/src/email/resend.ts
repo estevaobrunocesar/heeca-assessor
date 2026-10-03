@@ -41,3 +41,12 @@ export async function sendReportEmail(
   const { error } = await client.emails.send({ from: fromAddress, to, ...message });
   if (error) throw new Error(`Resend: ${error.message}`);
 }
+
+export async function sendGoalAlertEmail(to: string, message: { subject: string; html: string }) {
+  if (!client) {
+    throw new Error("RESEND_API_KEY is not configured");
+  }
+
+  const { error } = await client.emails.send({ from: fromAddress, to, ...message });
+  if (error) throw new Error(`Resend: ${error.message}`);
+}

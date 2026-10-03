@@ -115,6 +115,8 @@ model User {
   mfaFailedAttempts Int       @default(0)
   mfaLockedUntil    DateTime?
   goalContributions GoalContribution[]
+  // E-mail when a savings goal is behind, close to its deadline or overdue. On unless the person turns it off.
+  goalAlertsEmail Boolean @default(true)
 
   // Periodic report by e-mail: off until the person opts in. The key names the last period
   // already sent ("W:2026-09-28" / "M:2026-09"), which makes the daily job idempotent.
@@ -385,6 +387,9 @@ model SavingsGoal {
   name         String
   targetAmount Decimal   @db.Decimal(12, 2)
   deadline     DateTime? @db.Date
+  // The last alert sent for this goal ("LATE", "NEAR:2026-12-31", "OVERDUE:2026-12-31"), so the daily job never repeats itself.
+  lastAlertKey String?
+  lastAlertAt  DateTime?
   createdAt    DateTime  @default(now())
 
   contributions GoalContribution[]

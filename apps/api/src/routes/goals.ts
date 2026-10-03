@@ -21,6 +21,18 @@ goalsRouter.get("/", async (req, res) => {
   res.json(await listGoals(req.auth!.workspaceId));
 });
 
+// Each person decides whether the late/near/overdue alerts reach their e-mail (on by default).
+goalsRouter.get("/alerts", async (req, res) => {
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: req.auth!.sub }, select: { goalAlertsEmail: true, email: true } });
+  res.json({ enabled: user.goalAlertsEmail, email: user.email });
+});
+
+goalsRouter.put("/alerts", async (req, res) => {
+  if (typeof req.body?.enabled !== "boolean") return res.status(400).json({ error: "enabled must be true or false" });
+  await prisma.user.update({ where: { id: req.auth!.sub }, data: { goalAlertsEmail: req.body.enabled } });
+  res.json({ enabled: req.body.enabled });
+});
+
 goalsRouter.get("/:id", async (req, res) => {
   const workspaceId = req.auth!.workspaceId;
   const goal = await getGoal(req.params.id, workspaceId);
