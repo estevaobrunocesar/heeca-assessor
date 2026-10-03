@@ -15,9 +15,9 @@ export async function apiFetch(path: string, init?: RequestInit) {
   return fetch(`${API_URL}${path}`, {
     ...init,
     headers: {
+      "Content-Type": "application/json",
       ...init?.headers,
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      "Content-Type": "application/json",
     },
     cache: "no-store",
   });

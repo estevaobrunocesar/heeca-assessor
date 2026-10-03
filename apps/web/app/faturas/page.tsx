@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { apiFetch } from "../../lib/api";
 import { BankLogo } from "../components/BankLogo";
+import { ImportInvoiceCard } from "../components/ImportInvoiceCard";
 
 type Invoice = {
   startDate: string;
@@ -92,6 +93,8 @@ export default async function InvoicesPage() {
                 )}
               </div>
             </div>
+
+            <ImportInvoiceCard accountId={card.account.id} cardName={card.account.bank ?? card.account.name} />
 
             {!card.configured ? (
               <div className="card" style={{ padding: 20, marginTop: 12, color: "var(--muted)", fontSize: 14 }}>

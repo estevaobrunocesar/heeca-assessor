@@ -43,6 +43,25 @@ export type ParsedDocument = {
   truncated: boolean;
 };
 
+/**
+ * The model tends to copy one line's "3/10" onto its neighbours, so an installment only
+ * counts if that marker is printed in the source on the same line as the entry.
+ */
+export function installmentIsInSource(line: StatementLine, chunk: string): boolean {
+  if (!line.parcela_atual || !line.parcela_total) return true;
+  const no = line.parcela_atual;
+  const total = line.parcela_total;
+  const marker = new RegExp(`(?<!\d)0*${no}\s*(?:/|de)\s*0*${total}(?!\d)|parc\w*\.?\s*0*${no}(?!\d)`, "i");
+  const words = normalizeText([line.estabelecimento, line.descricao].filter(Boolean).join(" "))
+    .split(" ")
+    .filter((w) => w.length > 1)
+    .slice(0, 2);
+  if (words.length === 0) return false;
+  return chunk
+    .split("\n")
+    .some((row) => marker.test(row) && words.every((w) => normalizeText(row).includes(w)));
+}
+
 /** Reads the whole document, one chunk at a time, into a flat list of entries. */
 export async function parseStatement(text: string, caption: string, workspaceId: string): Promise<ParsedDocument> {
   const chunks = chunkText(text);
@@ -57,7 +76,13 @@ export async function parseStatement(text: string, caption: string, workspaceId:
     const result = await extractStatementChunk(chunk, header, caption, workspaceId, today);
     if (index === 0 || documentType === "OUTRO") documentType = result.tipo_documento;
     accountMention ??= result.conta;
-    lines.push(...result.lancamentos);
+    for (const line of result.lancamentos) {
+      if (line.parcela_total && !installmentIsInSource(line, chunk)) {
+        line.parcela_atual = null;
+        line.parcela_total = null;
+      }
+      lines.push(line);
+    }
   }
 
   return {
@@ -172,7 +197,7 @@ export async function stageImport(
   };
 }
 
-async function markDuplicates(items: StagedItem[], workspaceId: string) {
+export async function markDuplicates(items: StagedItem[], workspaceId: string) {
   if (items.length === 0) return;
   const dates = items.map((i) => i.date).sort();
   const existing = await prisma.transaction.findMany({
@@ -205,7 +230,11 @@ async function markDuplicates(items: StagedItem[], workspaceId: string) {
 }
 
 /** Inserts the new entries as one batch (so the import can be undone as a whole). */
-export async function commitImport(staged: StagedImport, user: { id: string; workspaceId: string }) {
+export async function commitImport(
+  staged: Pick<StagedImport, "accountId" | "items">,
+  user: { id: string; workspaceId: string },
+  origin: "WHATSAPP_FILE" | "DASHBOARD" = "WHATSAPP_FILE",
+) {
   const fresh = staged.items.filter((i) => !i.duplicate);
   const batchId = randomUUID();
 
@@ -226,7 +255,7 @@ export async function commitImport(staged: StagedImport, user: { id: string; wor
         isInstallment: item.installmentNo !== null,
         installmentNo: item.installmentNo,
         installmentTotal: item.installmentTotal,
-        origin: "WHATSAPP_FILE" as const,
+        origin,
         originalMessage: "Importado de arquivo",
         importBatchId: batchId,
       })),

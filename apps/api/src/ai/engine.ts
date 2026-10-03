@@ -152,6 +152,8 @@ ou comprovante em PDF) e lista CADA lancamento que ele contem, sem inventar nenh
 - Linhas que NAO sao lancamentos (saldo anterior, saldo do dia, total, subtotal, limite, resumo, cabecalhos, rodapes,
   numeros de pagina) devem ser OMITIDAS.
 - Compra parcelada aparece como "Parcela 2/5", "2/5" ou "(2/5)": preencha parcela_atual e parcela_total e tire isso da descricao.
+  Isso vale SOMENTE para a linha que mostra essa marca: nas demais linhas, parcela_atual e parcela_total ficam null.
+  Nunca copie a parcela de uma linha para as outras.
 - "estabelecimento": nome limpo de quem recebeu/enviou (ex: "Padaria Pao Quente"), sem codigos de filial nem CNPJ.
 - Escolha categoria/subcategoria da lista cadastrada quando houver encaixe claro; prefira a mais especifica e evite "Outros".
 - "conta": o banco ou cartao citado no cabecalho do documento (ex: "Nubank", "Itau"), se houver.
