@@ -90,3 +90,27 @@ export function UserBarsChart({ data }: { data: { name: string; total: number }[
     </ResponsiveContainer>
   );
 }
+
+/** Projected balance day by day; the area turns red below zero. */
+export function ForecastChart({ data }: { data: { date: string; balance: number }[] }) {
+  const c = useThemeColors();
+  const dayLabel = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+  return (
+    <ResponsiveContainer width="100%" height={300}>
+      <AreaChart data={data}>
+        <defs>
+          <linearGradient id="forecastFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor={c.blue} stopOpacity={0.35} />
+            <stop offset="95%" stopColor={c.blue} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="2 4" stroke={c.border} vertical={false} />
+        <XAxis dataKey="date" tickFormatter={dayLabel} {...axis(c)} axisLine={{ stroke: c.border }} minTickGap={28} />
+        <YAxis tickFormatter={(v) => formatBRL(v)} width={84} {...axis(c)} axisLine={false} />
+        <Tooltip formatter={(v) => formatBRL(Number(v))} labelFormatter={(l) => dayLabel(String(l))} contentStyle={tooltipStyle(c)} />
+        <ReferenceLine y={0} stroke={c.red} strokeDasharray="4 4" />
+        <Area type="monotone" dataKey="balance" name="Saldo estimado" stroke={c.blue} strokeWidth={2} fill="url(#forecastFill)" />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+}

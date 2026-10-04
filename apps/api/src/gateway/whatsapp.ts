@@ -15,6 +15,7 @@ import { answerPeopleList, PEOPLE_LIST_RE } from "./people";
 import { answerGoalList, GOALS_LIST_RE, handleGoalContribution } from "./goals";
 import { handleSummary } from "./summary";
 import { answerFinances, FINANCES_RE } from "./analysis";
+import { answerForecast, FORECAST_RE } from "./forecast";
 import { resolvePerson } from "../financial/people";
 import { parseDay } from "../financial/bills";
 import { todayInBrazil } from "../financial/invoices";
@@ -490,6 +491,7 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
   }
 
   if (FINANCES_RE.test(text)) return sendReply(await answerFinances(user));
+  if (FORECAST_RE.test(text)) return sendReply(await answerForecast(user));
 
   const summaryReply = await handleSummary(text, user);
   if (summaryReply) return sendReply(summaryReply);

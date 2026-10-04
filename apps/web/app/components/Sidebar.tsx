@@ -15,6 +15,7 @@ import {
   PiggyBank,
   Activity,
   ScrollText,
+  TrendingUp,
   Users,
   Settings,
 } from "lucide-react";
@@ -30,6 +31,7 @@ const LINKS = [
   { href: "/pessoas", label: "Pessoas", icon: UserRound },
   { href: "/relatorios", label: "Relatórios", icon: BarChart3 },
   { href: "/bi", label: "BI", icon: Activity },
+  { href: "/previsao", label: "Previsão", icon: TrendingUp },
   { href: "/planejamento", label: "Planejamento", icon: Target },
   { href: "/metas", label: "Metas", icon: PiggyBank },
   { href: "/admin/usuarios", label: "Usuários", icon: Users },
