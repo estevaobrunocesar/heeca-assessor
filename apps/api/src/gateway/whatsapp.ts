@@ -165,8 +165,20 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
       receivedAt: new Date(),
     });
 
+    // Keep the voice message itself, not only the link (which needs credentials and expires).
+    const storedAudio =
+      source === "audio" && voice
+        ? await prisma.storedAudio
+            .create({ data: { workspaceId: user!.workspaceId, contentType: voice.contentType, data: voice.data } })
+            .catch((err) => {
+              console.error("Could not store the voice message:", err);
+              return null;
+            })
+        : null;
+
     await prisma.aiInteractionLog.create({
       data: {
+        audioId: storedAudio?.id,
         workspaceId: user!.workspaceId,
         userId: user!.id,
         transactionId: result.kind === "registered" ? result.transactionId : undefined,
@@ -246,6 +258,7 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
   const mediaType = ((req.body.MediaContentType0 as string | undefined) ?? "").toLowerCase();
   let text = body;
   let receipt: ReceiptImage | null = null;
+  let voice: { data: Buffer; contentType: string } | null = null;
   let document: { buffer: Buffer; kind: DocumentKind } | null = null;
   if (mediaUrl) {
     if (mediaType.startsWith("image/")) {
@@ -259,6 +272,7 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
       const audio = await downloadMedia(mediaUrl);
       if (audio === "too_large") return sendReply("Esse áudio é grande demais. Tenta um mais curto.");
       text = await transcribeAudio(audio, "audio.ogg");
+      voice = { data: audio, contentType: mediaType || "audio/ogg" };
     } else if (isDocumentMediaType(mediaType)) {
       const file = await downloadMedia(mediaUrl);
       if (file === "too_large") return sendReply("Esse arquivo é grande demais (o limite é 8 MB). Tenta exportar um período menor.");

@@ -140,6 +140,21 @@ transactionsRouter.get("/:id", async (req, res) => {
     origin: t.origin,
     originalMessage: t.originalMessage,
     aiConfidence: t.aiConfidence,
+    hasAudio: ai?.audioId != null,
     ai: ai ? { model: ai.model, transcription: ai.transcription, confidence: ai.confidence, extractedData: ai.extractedData, createdAt: ai.createdAt } : null,
   });
+});
+
+// The original voice message of an entry (scoped to the workspace like everything else).
+transactionsRouter.get("/:id/audio", async (req, res) => {
+  const log = await prisma.aiInteractionLog.findFirst({
+    where: { transactionId: req.params.id, workspaceId: req.auth!.workspaceId, audioId: { not: null } },
+    include: { audio: true },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!log?.audio) return res.status(404).json({ error: "Audio not found" });
+  res.setHeader("Content-Type", log.audio.contentType);
+  res.setHeader("Content-Length", String(log.audio.data.length));
+  res.setHeader("Cache-Control", "private, no-store");
+  res.send(Buffer.from(log.audio.data));
 });

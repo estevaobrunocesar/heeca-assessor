@@ -84,6 +84,7 @@ model Workspace {
   categoryKeywords CategoryKeyword[]
   people         Person[]
   savingsGoals SavingsGoal[]
+  storedAudios StoredAudio[]
 }
 
 model User {
@@ -380,6 +381,9 @@ model AiInteractionLog {
   originalMessage String?
   audioUrl        String?
   transcription    String?
+  // The voice message itself (kept for audit and correction), not just Twilio's expiring link.
+  audioId         String?
+  audio           StoredAudio? @relation(fields: [audioId], references: [id])
   model           String
   promptVersion   String?
   rawResponse     Json?
@@ -423,4 +427,17 @@ model GoalContribution {
   createdAt DateTime @default(now())
 
   @@index([goalId])
+}
+
+/// The original WhatsApp voice message, kept so an entry can be audited later.
+model StoredAudio {
+  id          String    @id @default(uuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+
+  contentType String
+  data        Bytes
+  createdAt   DateTime  @default(now())
+
+  logs AiInteractionLog[]
 }

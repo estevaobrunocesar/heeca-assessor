@@ -21,6 +21,7 @@ type Detail = {
   origin: "WHATSAPP_TEXT" | "WHATSAPP_AUDIO" | "WHATSAPP_PHOTO" | "WHATSAPP_FILE" | "DASHBOARD";
   originalMessage: string | null;
   aiConfidence: number | null;
+  hasAudio: boolean;
   ai: { model: string; transcription: string | null; confidence: number | null; extractedData: unknown; createdAt: string } | null;
 };
 
@@ -104,6 +105,13 @@ export default async function TransactionDetailPage({ params }: { params: Promis
             <blockquote style={{ margin: "6px 0 0", padding: "10px 14px", borderLeft: "3px solid var(--card-border)", background: "var(--field-bg)", borderRadius: 6, fontSize: 14 }}>
               {t.originalMessage}
             </blockquote>
+          </div>
+        )}
+        {t.hasAudio && (
+          <div style={{ marginTop: 16 }}>
+            <div style={{ fontSize: 12, color: "var(--muted)" }}>Áudio original</div>
+            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+            <audio controls preload="none" src={`/api/transactions/${t.id}/audio`} style={{ marginTop: 6, width: "100%" }} />
           </div>
         )}
         {t.ai?.transcription && (
