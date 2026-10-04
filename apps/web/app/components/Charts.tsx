@@ -3,19 +3,19 @@
 import { useEffect, useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid, Legend } from "recharts";
 
-function formatBRL(value: number) {
+export function formatBRL(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
 const MONTHS_PT = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
-function formatMonth(yyyyMM: string) {
+export function formatMonth(yyyyMM: string) {
   const [year, month] = yyyyMM.split("-");
   return `${MONTHS_PT[Number(month) - 1]}/${year.slice(2)}`;
 }
 
 /** Reads the current theme's CSS custom properties so charts stay in sync with the toggle. */
-function useThemeColors() {
+export function useThemeColors() {
   const [colors, setColors] = useState({
     ink: "#111113",
     muted: "#6b7280",
