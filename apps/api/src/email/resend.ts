@@ -1,7 +1,7 @@
 import { Resend } from "resend";
 
 const apiKey = process.env.RESEND_API_KEY;
-const fromAddress = process.env.RESEND_FROM_EMAIL ?? "Meu Assessor <onboarding@resend.dev>";
+const fromAddress = process.env.RESEND_FROM_EMAIL ?? "Heeca Assist <onboarding@resend.dev>";
 
 // Lazily constructed, and tolerant of a missing key — forgot-password should
 // degrade to a clear error instead of crashing the whole API at startup
@@ -20,9 +20,9 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string) {
   await client.emails.send({
     from: fromAddress,
     to,
-    subject: "Redefinir sua senha — Meu Assessor",
+    subject: "Redefinir sua senha — Heeca Assist",
     html: `
-      <p>Você pediu para redefinir sua senha no Meu Assessor.</p>
+      <p>Você pediu para redefinir sua senha no Heeca Assist.</p>
       <p><a href="${resetUrl}">Clique aqui para escolher uma nova senha</a></p>
       <p>Esse link expira em 1 hora. Se você não pediu isso, pode ignorar este e-mail.</p>
     `,

@@ -9,7 +9,7 @@ const inter = Inter({
   display: "swap",
 });
 
-export const metadata = { title: "Heeca Assessor" };
+export const metadata = { title: "Heeca Assist" };
 
 const THEME_INIT = `
 (function () {

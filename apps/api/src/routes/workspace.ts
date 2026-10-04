@@ -25,7 +25,7 @@ workspaceRouter.get("/export", requireAdmin, async (req, res) => {
     prisma.savingsGoal.findMany({ where: { workspaceId }, include: { contributions: true } }),
   ]);
 
-  res.setHeader("Content-Disposition", `attachment; filename="meu-assessor-export-${workspaceId}.json"`);
+  res.setHeader("Content-Disposition", `attachment; filename="heeca-assist-export-${workspaceId}.json"`);
   res.json({ exportedAt: new Date().toISOString(), workspace, users, accounts, categories, transactions, budgets, recurringRules, bills, categoryKeywords, people, savingsGoals });
 });
 

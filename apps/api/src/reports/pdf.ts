@@ -25,7 +25,7 @@ function fit(doc: PDFKit.PDFDocument, text: string, width: number): string {
 /** Builds the PDF with PDFKit's built-in Helvetica (Latin-1: covers pt-BR accents and "R$"). */
 export function buildPdf(data: ReportData, workspaceName: string): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: "A4", margin: MARGIN, bufferPages: true, info: { Title: "Relatório financeiro", Author: "Heeca Assessor" } });
+    const doc = new PDFDocument({ size: "A4", margin: MARGIN, bufferPages: true, info: { Title: "Relatório financeiro", Author: "Heeca Assist" } });
     const chunks: Buffer[] = [];
     doc.on("data", (c: Buffer) => chunks.push(c));
     doc.on("end", () => resolve(Buffer.concat(chunks)));

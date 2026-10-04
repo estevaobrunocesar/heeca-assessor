@@ -7,7 +7,7 @@ import QRCode from "qrcode";
 authenticator.options = { window: 1 };
 
 const STEP_SECONDS = 30;
-const ISSUER = "Heeca Assessor";
+const ISSUER = "Heeca Assist";
 
 // The TOTP secret is as good as the second factor itself, so it never sits in
 // the database in the clear: AES-256-GCM with a key derived from the server's

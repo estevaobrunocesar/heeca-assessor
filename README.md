@@ -1,4 +1,4 @@
-# Meu Assessor Financeiro (Heeca Assessor)
+# Heeca Assist (antes: Meu Assessor Financeiro / Heeca Assessor)
 
 Assistente financeiro pessoal via WhatsApp, multi-tenant. Arquitetura:
 

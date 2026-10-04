@@ -143,7 +143,7 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
 
   const user = await findUserByPhone(from);
   if (!user) {
-    return sendReply("Esse número não está cadastrado como usuário do assessor financeiro. Peça ao administrador para te cadastrar.");
+    return sendReply("Esse número não está cadastrado como usuário do Heeca Assist. Peça ao administrador para te cadastrar.");
   }
 
   // Opens the 24h window in which we may write to this person first (the weekly summary relies on it).

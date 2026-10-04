@@ -75,7 +75,7 @@ export function MfaCard() {
 
   function downloadCodes() {
     const blob = new Blob(
-      [`Códigos de recuperação — Heeca Assessor\nCada código funciona uma única vez.\n\n${(recoveryCodes ?? []).join("\n")}\n`],
+      [`Códigos de recuperação — Heeca Assist\nCada código funciona uma única vez.\n\n${(recoveryCodes ?? []).join("\n")}\n`],
       { type: "text/plain" },
     );
     const url = URL.createObjectURL(blob);

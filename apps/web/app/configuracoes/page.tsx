@@ -19,7 +19,7 @@ export default function ConfiguracoesPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "meu-assessor-export.json";
+    a.download = "heeca-assist-export.json";
     a.click();
     URL.revokeObjectURL(url);
   }

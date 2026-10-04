@@ -11,7 +11,7 @@ export function Logo({ compact = false }: { compact?: boolean }) {
         <div style={{ lineHeight: 1.05 }}>
           <div style={{ fontSize: 17, fontWeight: 700, color: "var(--sidebar-ink)" }}>Heeca</div>
           <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", color: "var(--primary)" }}>
-            ASSESSOR
+            ASSIST
           </div>
         </div>
       )}

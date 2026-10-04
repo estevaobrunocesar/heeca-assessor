@@ -64,7 +64,7 @@ export function PhoneLinkModal() {
         </div>
         <h2 style={{ fontSize: 17 }}>Vincule seu WhatsApp</h2>
         <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 4 }}>
-          Informe o número que você vai usar para conversar com o Assessor. Mensagens de outros números não serão
+          Informe o número que você vai usar para conversar com o Heeca Assist. Mensagens de outros números não serão
           atendidas.
         </p>
         <form onSubmit={submit} style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>

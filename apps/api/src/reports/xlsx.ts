@@ -13,7 +13,7 @@ function styleHeader(row: ExcelJS.Row) {
 
 export async function buildXlsx(data: ReportData, workspaceName: string): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
-  wb.creator = "Heeca Assessor";
+  wb.creator = "Heeca Assist";
   wb.created = new Date();
 
   // Resumo
