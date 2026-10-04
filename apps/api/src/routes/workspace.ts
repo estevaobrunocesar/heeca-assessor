@@ -44,6 +44,7 @@ workspaceRouter.delete("/", requireAdmin, async (req, res) => {
   }
 
   await prisma.$transaction([
+    prisma.auditLog.deleteMany({ where: { workspaceId } }),
     prisma.aiInteractionLog.deleteMany({ where: { workspaceId } }),
     prisma.storedAudio.deleteMany({ where: { workspaceId } }),
     prisma.transaction.deleteMany({ where: { workspaceId } }),

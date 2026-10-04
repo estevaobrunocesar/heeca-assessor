@@ -22,6 +22,8 @@ import { reportsRouter } from "./routes/reports";
 import { importsRouter } from "./routes/imports";
 import { goalsRouter } from "./routes/goals";
 import { biRouter } from "./routes/bi";
+import { auditRouter } from "./routes/audit";
+import { auditChanges } from "./audit/audit";
 import { insightsRouter } from "./routes/insights";
 import { peopleRouter } from "./routes/people";
 import { getTemporaryFile } from "./reports/store";
@@ -65,6 +67,7 @@ app.get("/reports/:token/:filename", webhookLimiter, (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   res.send(file.buffer);
 });
+app.use("/api", auditChanges);
 app.use("/api/auth", authLimiter, authRouter);
 
 app.use("/api/dashboard", requireAuth, dashboardRouter);
@@ -81,6 +84,7 @@ app.use("/api/reports", requireAuth, reportsRouter);
 app.use("/api/imports", requireAuth, importsRouter);
 app.use("/api/goals", requireAuth, goalsRouter);
 app.use("/api/bi", requireAuth, biRouter);
+app.use("/api/audit", requireAuth, auditRouter);
 app.use("/api/insights", requireAuth, insightsRouter);
 app.use("/api/people", requireAuth, peopleRouter);
 app.use("/api/workspace", requireAuth, workspaceRouter);

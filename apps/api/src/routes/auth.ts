@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { login } from "../auth/service";
+import { login, verifyMfaChallenge } from "../auth/service";
+import { recordAudit } from "../audit/audit";
 import { beginMfaSetup, completeMfaLogin, disableMfa, enableMfa, mfaStatus } from "../auth/mfaService";
 import { requireAuth } from "../auth/middleware";
 import { createPasswordResetToken, consumePasswordResetToken } from "../auth/passwordReset";
@@ -19,12 +20,16 @@ authRouter.post("/login", async (req, res) => {
 
   const result = await login(email, password);
   if (!result) {
+    // Known e-mail: attach the account, so its admin sees someone trying (the password is never stored).
+    const known = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() }, select: { id: true } });
+    void recordAudit({ userId: known?.id, action: "LOGIN_FAILED", detail: email.trim().toLowerCase(), status: 401, ip: req.ip });
     return res.status(401).json({ error: "Invalid credentials" });
   }
 
   // Right password, but MFA is on: no session yet, only a short-lived challenge to answer with a code.
   if (result.kind === "mfa") return res.json({ mfaRequired: true, mfaToken: result.mfaToken });
 
+  void recordAudit({ userId: result.user.id, action: "LOGIN", status: 200, ip: req.ip });
   res.json({ token: result.token, user: result.user });
 });
 
@@ -33,7 +38,11 @@ authRouter.post("/mfa/verify", async (req, res) => {
   if (!mfaToken || !code) return res.status(400).json({ error: "mfaToken and code are required" });
 
   const result = await completeMfaLogin(mfaToken, code);
-  if (result.ok) return res.json({ token: result.token, user: result.user, recoveryCodesLeft: result.recoveryCodesLeft });
+  if (result.ok) {
+    void recordAudit({ userId: result.user.id, action: "LOGIN_MFA", status: 200, ip: req.ip });
+    return res.json({ token: result.token, user: result.user, recoveryCodesLeft: result.recoveryCodesLeft });
+  }
+  void recordAudit({ userId: verifyMfaChallenge(mfaToken), action: "LOGIN_MFA_FAILED", detail: result.reason, status: 401, ip: req.ip });
 
   if (result.reason === "expired") return res.status(401).json({ error: "expired" });
   if (result.reason === "locked") return res.status(429).json({ error: "locked", retryAfterMinutes: result.retryAfterMinutes });

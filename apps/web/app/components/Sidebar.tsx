@@ -14,6 +14,7 @@ import {
   Target,
   PiggyBank,
   Activity,
+  ScrollText,
   Users,
   Settings,
 } from "lucide-react";
@@ -32,6 +33,7 @@ const LINKS = [
   { href: "/planejamento", label: "Planejamento", icon: Target },
   { href: "/metas", label: "Metas", icon: PiggyBank },
   { href: "/admin/usuarios", label: "Usuários", icon: Users },
+  { href: "/admin/auditoria", label: "Auditoria", icon: ScrollText },
   { href: "/configuracoes", label: "Configurações", icon: Settings },
 ];
 

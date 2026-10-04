@@ -85,6 +85,7 @@ model Workspace {
   people         Person[]
   savingsGoals SavingsGoal[]
   storedAudios StoredAudio[]
+  auditLogs    AuditLog[]
 }
 
 model User {
@@ -440,4 +441,23 @@ model StoredAudio {
   createdAt   DateTime  @default(now())
 
   logs AiInteractionLog[]
+}
+
+/// Who did what: every change made through the API and every sign-in attempt. It holds the
+/// action, the target id and the outcome, never the request body (no passwords, no amounts).
+model AuditLog {
+  id          String     @id @default(uuid())
+  workspaceId String?
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id])
+  userId      String?
+
+  action   String // e.g. "DELETE /api/transactions/:id" or "LOGIN"
+  label    String // the same in Portuguese, for the screen
+  entityId String?
+  status   Int?
+  detail   String? // e.g. the e-mail of a failed sign-in
+  ip       String?
+  createdAt DateTime @default(now())
+
+  @@index([workspaceId, createdAt])
 }
