@@ -2,22 +2,13 @@ import { Router } from "express";
 import { prisma } from "../db/client";
 import { requireAdmin } from "../auth/middleware";
 import { deleteTransaction, setTransactionCategory, setTransactionPerson } from "../financial/engine";
-import type { Prisma, TransactionType } from "@prisma/client";
+import { buildTransactionWhere, csvAmount, csvCell, type TransactionQuery } from "../financial/transactionFilter";
 
 export const transactionsRouter = Router();
 
 transactionsRouter.get("/", async (req, res) => {
-  const { from, to, categoryId, userId, type, page = "1", pageSize = "50" } = req.query as Record<string, string>;
-
-  const where: Prisma.TransactionWhereInput = { workspaceId: req.auth!.workspaceId, status: "CONFIRMED" };
-  if (from || to) {
-    where.date = {};
-    if (from) where.date.gte = new Date(from);
-    if (to) where.date.lte = new Date(to);
-  }
-  if (categoryId) where.categoryId = categoryId;
-  if (userId) where.userId = userId;
-  if (type) where.type = type as TransactionType;
+  const { page = "1", pageSize = "50" } = req.query as Record<string, string>;
+  const where = buildTransactionWhere(req.auth!.workspaceId, req.query as TransactionQuery);
 
   const take = Math.min(Number(pageSize) || 50, 200);
   const skip = (Math.max(Number(page) || 1, 1) - 1) * take;
@@ -73,4 +64,82 @@ transactionsRouter.patch("/:id", requireAdmin, async (req, res) => {
   }
 
   res.json(out);
+});
+
+const EXPORT_LIMIT = 20000;
+const TYPE_PT = { INCOME: "Receita", EXPENSE: "Despesa", TRANSFER: "Transferência", ADJUSTMENT: "Ajuste" } as const;
+const ORIGIN_PT = { WHATSAPP_TEXT: "WhatsApp (texto)", WHATSAPP_AUDIO: "WhatsApp (áudio)", WHATSAPP_PHOTO: "WhatsApp (foto)", WHATSAPP_FILE: "Arquivo", DASHBOARD: "Painel" } as const;
+
+// The filtered list as a CSV (opens in Excel in pt-BR: ";" separator, comma decimals, UTF-8 with BOM).
+transactionsRouter.get("/export.csv", async (req, res) => {
+  const where = buildTransactionWhere(req.auth!.workspaceId, req.query as TransactionQuery);
+  const rows = await prisma.transaction.findMany({
+    where,
+    include: { category: { include: { parent: true } }, user: true, account: true, toAccount: true, person: true },
+    orderBy: { date: "desc" },
+    take: EXPORT_LIMIT,
+  });
+
+  const header = ["Data", "Tipo", "Descrição", "Categoria", "Subcategoria", "Usuário", "Pessoa", "Conta", "Conta destino", "Valor", "Origem", "Parcela"];
+  const lines = rows.map((t) =>
+    [
+      t.date.toISOString().slice(0, 10),
+      TYPE_PT[t.type],
+      t.description,
+      t.category?.parent?.name ?? t.category?.name ?? "",
+      t.category?.parent ? t.category.name : "",
+      t.user.name,
+      t.person?.name ?? "",
+      t.account?.name ?? "",
+      t.toAccount?.name ?? "",
+      csvAmount(Number(t.amount)),
+      ORIGIN_PT[t.origin],
+      t.installmentNo ? `${t.installmentNo}/${t.installmentTotal}` : "",
+    ]
+      .map(csvCell)
+      .join(";"),
+  );
+
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="lancamentos-${new Date().toISOString().slice(0, 10)}.csv"`);
+  res.send("﻿" + [header.join(";"), ...lines].join("\r\n") + "\r\n");
+});
+
+// Everything known about one entry, for auditing: where it came from, what was said, what the AI read.
+transactionsRouter.get("/:id", async (req, res) => {
+  const workspaceId = req.auth!.workspaceId;
+  const t = await prisma.transaction.findFirst({
+    where: { id: req.params.id, workspaceId },
+    include: {
+      category: { include: { parent: true } },
+      user: { select: { name: true } },
+      account: true,
+      toAccount: true,
+      person: true,
+      aiLogs: { orderBy: { createdAt: "desc" }, take: 1 },
+    },
+  });
+  if (!t) return res.status(404).json({ error: "Transaction not found" });
+
+  const ai = t.aiLogs[0];
+  res.json({
+    id: t.id,
+    type: t.type,
+    status: t.status,
+    amount: Number(t.amount),
+    description: t.description,
+    date: t.date,
+    createdAt: t.createdAt,
+    category: t.category ? { name: t.category.name, parent: t.category.parent?.name ?? null } : null,
+    user: t.user.name,
+    person: t.person?.name ?? null,
+    account: t.account?.name ?? null,
+    toAccount: t.toAccount?.name ?? null,
+    merchant: t.merchant,
+    installment: t.installmentNo ? { no: t.installmentNo, total: t.installmentTotal } : null,
+    origin: t.origin,
+    originalMessage: t.originalMessage,
+    aiConfidence: t.aiConfidence,
+    ai: ai ? { model: ai.model, transcription: ai.transcription, confidence: ai.confidence, extractedData: ai.extractedData, createdAt: ai.createdAt } : null,
+  });
 });

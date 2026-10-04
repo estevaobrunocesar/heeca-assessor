@@ -40,6 +40,8 @@ const TYPE_META = {
   ADJUSTMENT: { label: "Ajuste", icon: Scale, pill: "pill-muted" },
 } as const;
 
+const FILTER_KEYS = ["from", "to", "categoryId", "type", "userId", "accountId", "minAmount", "maxAmount", "q"] as const;
+
 async function getTransactions(searchParams: Record<string, string | undefined>) {
   const params = new URLSearchParams();
   if (searchParams.from) params.set("from", searchParams.from);
@@ -77,6 +79,16 @@ async function changePerson(id: string, personId: string | null): Promise<Change
   return { ok: true };
 }
 
+async function getUsers() {
+  const res = await apiFetch("/api/users"); // admins only; anyone else just gets no user filter
+  return res.ok ? ((await res.json()) as { id: string; name: string }[]) : [];
+}
+
+async function getAccounts() {
+  const res = await apiFetch("/api/accounts");
+  return res.ok ? ((await res.json()) as { id: string; name: string }[]) : [];
+}
+
 async function getCategories() {
   const res = await apiFetch("/api/categories");
   const categories = (await res.json()) as (Category & { children: Category[] })[];
@@ -97,7 +109,9 @@ export default async function LancamentosPage({
 }) {
   const params = await searchParams;
   const activeType = params.type ?? "";
-  const [{ transactions, total }, categories] = await Promise.all([getTransactions(params), getCategories()]);
+  const [{ transactions, total }, categories, users, accounts] = await Promise.all([getTransactions(params), getCategories(), getUsers(), getAccounts()]);
+  const exportQuery = new URLSearchParams();
+  for (const key of FILTER_KEYS) if (params[key]) exportQuery.set(key, params[key]!);
 
   return (
     <main style={{ padding: "28px 28px 48px" }}>
@@ -132,9 +146,33 @@ export default async function LancamentosPage({
             </option>
           ))}
         </select>
+        {users.length > 1 && (
+          <select name="userId" defaultValue={params.userId ?? ""} className="field" style={{ flex: "1 1 150px" }}>
+            <option value="">Todos os usuários</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name}
+              </option>
+            ))}
+          </select>
+        )}
+        <select name="accountId" defaultValue={params.accountId ?? ""} className="field" style={{ flex: "1 1 160px" }}>
+          <option value="">Todas as contas e cartões</option>
+          {accounts.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.name}
+            </option>
+          ))}
+        </select>
+        <input name="minAmount" inputMode="decimal" placeholder="Valor mínimo" defaultValue={params.minAmount} className="field" style={{ flex: "1 1 110px" }} />
+        <input name="maxAmount" inputMode="decimal" placeholder="Valor máximo" defaultValue={params.maxAmount} className="field" style={{ flex: "1 1 110px" }} />
+        <input name="q" placeholder="Buscar descrição ou loja" defaultValue={params.q} className="field" style={{ flex: "2 1 180px" }} />
         <button type="submit" className="btn btn-primary">
           Filtrar
         </button>
+        <a href={`/api/transactions/export?${exportQuery.toString()}`} className="btn btn-ghost" download>
+          Exportar CSV
+        </a>
       </form>
 
       <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 16 }}>{total} lançamento(s)</p>
@@ -163,7 +201,11 @@ export default async function LancamentosPage({
               return (
                 <tr key={t.id}>
                   <td style={{ paddingLeft: 18, color: "var(--muted)" }}>{formatDate(t.date)}</td>
-                  <td style={{ fontWeight: 500 }}>{t.description}</td>
+                  <td style={{ fontWeight: 500 }}>
+                    <Link href={`/lancamentos/${t.id}`} style={{ color: "inherit" }} title="Ver detalhes">
+                      {t.description}
+                    </Link>
+                  </td>
                   <td style={{ color: "var(--muted)" }}>
                     {t.type === "INCOME" || t.type === "EXPENSE" ? (
                       <CategoryCell
