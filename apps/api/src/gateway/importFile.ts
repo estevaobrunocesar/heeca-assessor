@@ -2,6 +2,7 @@ import { format } from "date-fns";
 import type { StatementLine } from "../ai/schema";
 import { readDocumentText, type DocumentKind } from "../imports/document";
 import { parseStatement, resolveImportAccount, stageImport, type StagedImport } from "../imports/statement";
+import { parseOfx } from "../imports/ofx";
 
 const brl = (value: number) =>
   value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }).replace(/ /g, " ");
@@ -21,7 +22,8 @@ export async function readAndStageDocument(
   user: { workspaceId: string },
 ): Promise<ReadDocumentResult> {
   const text = await readDocumentText(buffer, kind);
-  const parsed = await parseStatement(text, caption, user.workspaceId);
+  // An OFX file is already structured: read it directly, no AI involved.
+  const parsed = kind === "ofx" ? parseOfx(text) : await parseStatement(text, caption, user.workspaceId);
 
   const usable = parsed.lines.filter((l) => l.tipo !== "IGNORAR");
   if (usable.length === 0) return { kind: "empty" };

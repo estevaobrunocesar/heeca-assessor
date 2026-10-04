@@ -27,6 +27,7 @@ function guessType(name: string) {
   const ext = name.toLowerCase().split(".").pop();
   if (ext === "pdf") return "application/pdf";
   if (ext === "csv") return "text/csv";
+  if (ext === "ofx" || ext === "qfx") return "application/x-ofx";
   if (ext === "xlsx") return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
   return "application/octet-stream";
 }
@@ -122,7 +123,7 @@ export function ImportInvoiceCard({ accountId, cardName }: { accountId: string; 
 
   return (
     <div className="card" style={{ padding: 16, marginTop: 12 }}>
-      <input ref={input} type="file" accept=".pdf,.csv,.xlsx,application/pdf,text/csv" onChange={onFile} hidden />
+      <input ref={input} type="file" accept=".pdf,.csv,.xlsx,.ofx,application/pdf,text/csv" onChange={onFile} hidden />
 
       {!staged && (
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -130,7 +131,7 @@ export function ImportInvoiceCard({ accountId, cardName }: { accountId: string; 
             <FileUp size={14} /> {busy ? "Lendo o arquivo…" : "Importar fatura"}
           </button>
           <span style={{ fontSize: 12, color: "var(--muted)" }}>
-            {busy ? "Pode levar até 1 minuto." : `PDF, CSV ou Excel da fatura do ${cardName}. Você confere antes de gravar.`}
+            {busy ? "Pode levar até 1 minuto." : `PDF, CSV, Excel ou OFX da fatura do ${cardName}. Você confere antes de gravar.`}
           </span>
         </div>
       )}

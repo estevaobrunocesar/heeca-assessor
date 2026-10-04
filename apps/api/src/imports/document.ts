@@ -4,7 +4,7 @@ import { PDFParse } from "pdf-parse";
 /** An error whose message is safe to show the user as-is. */
 export class FriendlyError extends Error {}
 
-export type DocumentKind = "pdf" | "xlsx" | "csv";
+export type DocumentKind = "pdf" | "xlsx" | "csv" | "ofx";
 
 const MAX_TEXT_CHARS = 200_000;
 const MAX_SHEET_ROWS = 2_000;
@@ -14,6 +14,9 @@ export function classifyDocument(mediaType: string, buffer: Buffer): DocumentKin
   const type = mediaType.toLowerCase();
   const isZip = buffer.length > 4 && buffer[0] === 0x50 && buffer[1] === 0x4b; // "PK" — an .xlsx is a zip
   if (type === "application/pdf") return "pdf";
+  // OFX/QFX from the bank: known types, or any text-like file whose own header says it is one.
+  if (/ofx|qfx/.test(type)) return "ofx";
+  if (!isZip && !buffer.subarray(0, 2000).includes(0) && /OFXHEADER\s*:|<OFX[\s>]/i.test(buffer.subarray(0, 2000).toString("latin1"))) return "ofx";
   if (type.includes("spreadsheetml") || (isZip && type.includes("excel"))) return "xlsx";
   if (type === "text/csv" || type === "application/csv" || type === "text/plain") return "csv";
   // Some phones label a CSV as "excel"; a real legacy .xls is binary and can't be read.
@@ -68,7 +71,7 @@ function csvText(buffer: Buffer): string {
 export async function readDocumentText(buffer: Buffer, kind: DocumentKind): Promise<string> {
   let text: string;
   try {
-    text = kind === "pdf" ? await pdfText(buffer) : kind === "xlsx" ? await xlsxText(buffer) : csvText(buffer);
+    text = kind === "pdf" ? await pdfText(buffer) : kind === "xlsx" ? await xlsxText(buffer) : csvText(buffer); // csv and ofx are plain text
   } catch (err) {
     console.error("Could not read document:", err);
     throw new FriendlyError("Não consegui abrir esse arquivo. Ele pode estar protegido por senha ou corrompido.");

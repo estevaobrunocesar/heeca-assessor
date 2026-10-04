@@ -64,7 +64,9 @@ const isDocumentMediaType = (type: string) =>
   type === "text/csv" ||
   type === "application/csv" ||
   type === "text/plain" ||
-  type === "application/vnd.ms-excel";
+  type === "application/vnd.ms-excel" ||
+  /ofx|qfx/.test(type) ||
+  type === "application/octet-stream"; // an .ofx often arrives as a generic file; anything else is refused after download
 
 /** One confirmation per user: a new one replaces whatever was waiting. */
 function setPending(userId: string, action: string, payload: object) {
