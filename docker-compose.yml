@@ -22,6 +22,10 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY}
       RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL}
       WEB_URL: ${WEB_URL}
+      # Optional: public address of this API (WhatsApp delivery callbacks, report links) and the approved
+      # Twilio template used by the weekly summary outside the 24h window. Empty = not set.
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-}
+      TWILIO_SUMMARY_TEMPLATE_SID: ${TWILIO_SUMMARY_TEMPLATE_SID:-}
       PORT: 3001
     depends_on:
       - db

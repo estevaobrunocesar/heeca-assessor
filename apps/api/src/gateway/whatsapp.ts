@@ -503,7 +503,7 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
   }
 
   if (isReportRequest(text)) {
-    const baseUrl = process.env.PUBLIC_API_URL ?? `${req.protocol}://${req.get("host")}`;
+    const baseUrl = process.env.PUBLIC_API_URL || `${req.protocol}://${req.get("host")}`;
     const report = await buildReportReply(text, user, baseUrl);
     return sendReply(report.message, report.media);
   }

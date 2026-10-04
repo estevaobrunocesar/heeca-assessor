@@ -2,6 +2,12 @@ import Link from "next/link";
 import { apiFetch } from "../../../lib/api";
 
 type Item = { id: string; at: string; user: string | null; label: string; action: string; entityId: string | null; detail: string | null; ip: string | null; status: number | null };
+type Deliveries = {
+  last7Days: { total: number; delivered: number; failed: number };
+  items: { id: string; at: string; status: string; phone: string; failed: boolean; reason: string | null }[];
+};
+const STATUS_PT: Record<string, string> = { queued: "Na fila", sending: "Enviando", sent: "Enviada", delivered: "Entregue", read: "Lida", failed: "Falhou", undelivered: "Não entregue", accepted: "Aceita" };
+
 type Audit = { total: number; page: number; pageSize: number; items: Item[] };
 
 const stamp = (iso: string) => new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
@@ -11,7 +17,8 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
   const query = new URLSearchParams();
   for (const key of ["userId", "from", "to", "page"] as const) if (params[key]) query.set(key, params[key]!);
 
-  const [res, usersRes] = await Promise.all([apiFetch(`/api/audit?${query.toString()}`), apiFetch("/api/users")]);
+  const [res, usersRes, deliveriesRes] = await Promise.all([apiFetch(`/api/audit?${query.toString()}`), apiFetch("/api/users"), apiFetch("/api/audit/deliveries")]);
+  const deliveries: Deliveries | null = deliveriesRes.ok ? await deliveriesRes.json() : null;
   const audit: Audit | null = res.ok ? await res.json() : null;
   const users: { id: string; name: string }[] = usersRes.ok ? await usersRes.json() : [];
 
@@ -29,6 +36,32 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
       <p style={{ color: "var(--muted)", fontSize: 14, marginTop: 4, maxWidth: 700 }}>
         Quem fez o quê e quando: entradas no sistema, alterações e exclusões. Não guarda senhas nem valores, só a ação e o item afetado.
       </p>
+
+      {deliveries && (
+        <div className="card" style={{ padding: 18, marginTop: 20 }}>
+          <h2 style={{ fontSize: 15 }}>Entrega das mensagens de WhatsApp</h2>
+          <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 2 }}>
+            Mensagens que o sistema enviou por conta própria (resumos, resultado de importação, relatórios). Últimos 7 dias:{" "}
+            <strong style={{ color: "var(--ink)" }}>{deliveries.last7Days.total}</strong> enviadas ·{" "}
+            <strong style={{ color: "var(--green)" }}>{deliveries.last7Days.delivered}</strong> entregues ·{" "}
+            <strong style={{ color: deliveries.last7Days.failed > 0 ? "var(--red)" : "var(--ink)" }}>{deliveries.last7Days.failed}</strong> com falha
+          </p>
+          {deliveries.items.length === 0 ? (
+            <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 10 }}>Nenhuma mensagem enviada ainda.</p>
+          ) : (
+            <ul style={{ listStyle: "none", margin: "12px 0 0", padding: 0, display: "grid", gap: 6, fontSize: 13 }}>
+              {deliveries.items.slice(0, 10).map((d) => (
+                <li key={d.id} style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <span style={{ color: "var(--muted)", minWidth: 110 }}>{stamp(d.at)}</span>
+                  <span style={{ minWidth: 130 }}>{d.phone}</span>
+                  <span className={`pill ${d.failed ? "pill-red" : d.status === "delivered" || d.status === "read" ? "pill-green" : "pill-muted"}`}>{STATUS_PT[d.status] ?? d.status}</span>
+                  {d.reason && <span style={{ color: "var(--red)" }}>{d.reason}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       <form className="card" style={{ display: "flex", gap: 10, flexWrap: "wrap", padding: 16, marginTop: 20 }}>
         <select name="userId" defaultValue={params.userId ?? ""} className="field" style={{ flex: "1 1 180px" }}>

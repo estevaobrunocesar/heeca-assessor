@@ -1,4 +1,14 @@
 import twilio from "twilio";
+import { trackOutbound } from "./deliveries";
+
+/**
+ * Where Twilio reports what became of a message (queued, sent, delivered, read, failed). Needs the
+ * public address of this API; without it messages still go out, they just are not followed.
+ */
+function statusCallbackUrl(): string | undefined {
+  const base = process.env.PUBLIC_API_URL;
+  return base ? `${base.replace(/\/+$/, "")}/webhook/whatsapp/status` : undefined;
+}
 
 /**
  * Sends a WhatsApp message outside the webhook response. Used when the work
@@ -15,7 +25,8 @@ export async function sendWhatsapp(to: string, body: string): Promise<void> {
     return;
   }
   const client = twilio(process.env.TWILIO_ACCOUNT_SID!, process.env.TWILIO_AUTH_TOKEN!);
-  await client.messages.create({ from: process.env.TWILIO_WHATSAPP_NUMBER!, to, body });
+  const message = await client.messages.create({ from: process.env.TWILIO_WHATSAPP_NUMBER!, to, body, statusCallback: statusCallbackUrl() });
+  await trackOutbound(message.sid, to, message.status);
 }
 
 /**
@@ -28,5 +39,12 @@ export async function sendWhatsappTemplate(to: string, contentSid: string, varia
     return;
   }
   const client = twilio(process.env.TWILIO_ACCOUNT_SID!, process.env.TWILIO_AUTH_TOKEN!);
-  await client.messages.create({ from: process.env.TWILIO_WHATSAPP_NUMBER!, to, contentSid, contentVariables: JSON.stringify(variables) });
+  const message = await client.messages.create({
+    from: process.env.TWILIO_WHATSAPP_NUMBER!,
+    to,
+    contentSid,
+    contentVariables: JSON.stringify(variables),
+    statusCallback: statusCallbackUrl(),
+  });
+  await trackOutbound(message.sid, to, message.status);
 }

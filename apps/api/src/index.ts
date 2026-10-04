@@ -24,6 +24,7 @@ import { goalsRouter } from "./routes/goals";
 import { biRouter } from "./routes/bi";
 import { auditRouter } from "./routes/audit";
 import { auditChanges } from "./audit/audit";
+import { applyStatusCallback } from "./gateway/deliveries";
 import { insightsRouter } from "./routes/insights";
 import { peopleRouter } from "./routes/people";
 import { getTemporaryFile } from "./reports/store";
@@ -55,6 +56,15 @@ const authLimiter = rateLimit({
 });
 
 app.post("/webhook/whatsapp", webhookLimiter, verifyTwilioSignature, handleIncomingWhatsapp);
+// Twilio reports delivery of the messages we sent (sent, delivered, read, failed). Signed like the inbound webhook.
+app.post("/webhook/whatsapp/status", webhookLimiter, verifyTwilioSignature, async (req, res) => {
+  try {
+    await applyStatusCallback(req.body);
+  } catch (err) {
+    console.error("Error applying a WhatsApp status callback:", err);
+  }
+  res.sendStatus(204);
+});
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
 // Public on purpose: Twilio fetches WhatsApp attachments without credentials.

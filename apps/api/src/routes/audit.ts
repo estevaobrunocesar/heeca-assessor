@@ -2,7 +2,8 @@ import { Router } from "express";
 import { prisma } from "../db/client";
 import { requireAdmin } from "../auth/middleware";
 import { parseDay } from "../financial/bills";
-import { endOfDay } from "date-fns";
+import { endOfDay, subDays } from "date-fns";
+import { isFailure, reasonFor } from "../gateway/deliveries";
 
 export const auditRouter = Router();
 
@@ -44,3 +45,35 @@ auditRouter.get("/", requireAdmin, async (req, res) => {
     })),
   });
 });
+
+// How the WhatsApp messages the system sent on its own fared: counts for the last 7 days and the latest ones.
+auditRouter.get("/deliveries", requireAdmin, async (req, res) => {
+  const workspaceId = req.auth!.workspaceId;
+  const since = subDays(new Date(), 7);
+  const [recent, grouped] = await Promise.all([
+    prisma.whatsappDelivery.findMany({ where: { workspaceId }, orderBy: { createdAt: "desc" }, take: 30 }),
+    prisma.whatsappDelivery.groupBy({ by: ["status"], where: { workspaceId, createdAt: { gte: since } }, _count: true }),
+  ]);
+  const counts = Object.fromEntries(grouped.map((g) => [g.status, g._count]));
+  res.json({
+    last7Days: {
+      total: grouped.reduce((s, g) => s + g._count, 0),
+      delivered: (counts.delivered ?? 0) + (counts.read ?? 0),
+      failed: grouped.filter((g) => isFailure(g.status)).reduce((s, g) => s + g._count, 0),
+    },
+    items: recent.map((d) => ({
+      id: d.id,
+      at: d.createdAt,
+      status: d.status,
+      phone: maskPhone(d.toPhone),
+      failed: isFailure(d.status),
+      reason: reasonFor(d.errorCode),
+    })),
+  });
+});
+
+/** "+5511999998888" -> "+55 11 *****-8888": enough to recognise the person, not to copy the number. */
+function maskPhone(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  return digits.length < 8 ? "***" : `+${digits.slice(0, 2)} ${digits.slice(2, 4)} *****-${digits.slice(-4)}`;
+}

@@ -86,6 +86,7 @@ model Workspace {
   savingsGoals SavingsGoal[]
   storedAudios StoredAudio[]
   auditLogs    AuditLog[]
+  whatsappDeliveries WhatsappDelivery[]
 }
 
 model User {
@@ -458,6 +459,24 @@ model AuditLog {
   detail   String? // e.g. the e-mail of a failed sign-in
   ip       String?
   createdAt DateTime @default(now())
+
+  @@index([workspaceId, createdAt])
+}
+
+/// What happened to a WhatsApp message we sent on our own (summaries, import results, reports):
+/// Twilio reports queued -> sent -> delivered -> read, or failed/undelivered with an error code.
+model WhatsappDelivery {
+  id          String     @id @default(uuid())
+  sid         String     @unique
+  workspaceId String?
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id])
+
+  toPhone      String
+  status       String
+  errorCode    String?
+  errorMessage String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@index([workspaceId, createdAt])
 }
