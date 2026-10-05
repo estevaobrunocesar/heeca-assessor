@@ -161,7 +161,9 @@ ou comprovante em PDF) e lista CADA lancamento que ele contem, sem inventar nenh
 - "estabelecimento": nome limpo de quem recebeu/enviou (ex: "Padaria Pao Quente"), sem codigos de filial nem CNPJ.
 - Escolha categoria/subcategoria da lista cadastrada quando houver encaixe claro; prefira a mais especifica e evite "Outros".
 - "conta": o banco ou cartao citado no cabecalho do documento (ex: "Nubank", "Itau"), se houver.
-- "tipo_documento": EXTRATO_CONTA, FATURA_CARTAO, COMPROVANTE (um unico comprovante) ou OUTRO.`;
+- "tipo_documento": EXTRATO_CONTA, FATURA_CARTAO, COMPROVANTE (um unico comprovante) ou OUTRO.
+- NUNCA invente. Se o trecho for ilegivel, embaralhado ou nao tiver nenhum lancamento real, devolva a lista de
+  lancamentos VAZIA. So liste um lancamento se voce conseguir ler a data e o valor dele no proprio documento.`;
 
 /** Reads one chunk of a document's text into entries; header is the start of the document, for context. */
 export async function extractStatementChunk(
@@ -232,6 +234,45 @@ export async function extractFromReceipt(
   const parsed = completion.choices[0]?.message?.parsed;
   if (!parsed) throw new Error("AI did not return a parseable receipt extraction");
   return cleanExtraction(parsed);
+}
+
+/** Reads a statement from page images, for PDFs whose text layer is missing or unreadable (scanned, odd fonts). */
+export async function extractStatementFromImages(
+  images: string[],
+  caption: string,
+  workspaceId: string,
+  today: Date,
+): Promise<Statement> {
+  const categoryPrompt = await buildCategoryPrompt(workspaceId);
+  const iso = today.toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+
+  const completion = await openai.beta.chat.completions.parse({
+    model: "gpt-4o-2024-08-06",
+    messages: [
+      { role: "system", content: STATEMENT_RULES + "\n\nAs paginas do documento chegam como IMAGENS: leia o que esta escrito nelas.\n\nHoje e " + iso + "." + categoryPrompt },
+      {
+        role: "user",
+        content: [
+          { type: "text", text: (caption ? "Legenda do usuario: " + caption + "\n\n" : "") + "Liste os lancamentos destas paginas." },
+          ...images.map((url) => ({ type: "image_url" as const, image_url: { url, detail: "high" as const } })),
+        ],
+      },
+    ],
+    response_format: zodResponseFormat(StatementSchema, "statement"),
+  });
+
+  const parsed = completion.choices[0]?.message?.parsed;
+  if (!parsed) throw new Error("AI did not return a parseable statement");
+  return {
+    ...parsed,
+    conta: nullIfEmpty(parsed.conta),
+    lancamentos: parsed.lancamentos.map((l) => ({
+      ...l,
+      estabelecimento: nullIfEmpty(l.estabelecimento),
+      categoria: nullIfEmpty(l.categoria),
+      subcategoria: nullIfEmpty(l.subcategoria),
+    })),
+  };
 }
 
 const QUERY_PROMPT = `Voce interpreta perguntas sobre financas pessoais feitas por WhatsApp (portugues do Brasil).

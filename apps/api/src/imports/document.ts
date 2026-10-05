@@ -4,6 +4,20 @@ import { PDFParse } from "pdf-parse";
 /** An error whose message is safe to show the user as-is. */
 export class FriendlyError extends Error {}
 
+/** A PDF whose text cannot be trusted (none at all, or scrambled by an unusual font): it has to be read from its images. */
+export class UnreadableTextError extends Error {}
+
+const DATE_RE = /\b\d{2}\/\d{2}(?:\/\d{2,4})?\b|\b\d{4}-\d{2}-\d{2}\b/;
+const AMOUNT_RE = /\b\d{1,3}(?:\.\d{3})*,\d{2}\b|\b\d+\.\d{2}\b/;
+
+/**
+ * A real statement or receipt always has at least one date and one amount. Text scrambled by a font
+ * without a character map has neither, and handing it to the model makes it invent entries.
+ */
+export function textLooksReadable(text: string): boolean {
+  return DATE_RE.test(text) && AMOUNT_RE.test(text);
+}
+
 export type DocumentKind = "pdf" | "xlsx" | "csv" | "ofx";
 
 const MAX_TEXT_CHARS = 200_000;
@@ -78,6 +92,8 @@ export async function readDocumentText(buffer: Buffer, kind: DocumentKind): Prom
   }
 
   text = text.trim();
+  // A PDF with no text layer, or with unreadable text, is read from its page images instead.
+  if (kind === "pdf" && (text.length < 20 || !textLooksReadable(text))) throw new UnreadableTextError();
   if (text.length < 20) {
     throw new FriendlyError(
       kind === "pdf"

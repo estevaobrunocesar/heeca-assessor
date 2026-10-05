@@ -2,9 +2,9 @@ import express, { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import { prisma } from "../db/client";
-import { classifyDocument, FriendlyError, readDocumentText } from "../imports/document";
-import { parseOfx } from "../imports/ofx";
-import { commitImport, markDuplicates, parseStatement, stageImport, undoImport, type StagedItem } from "../imports/statement";
+import { classifyDocument, FriendlyError } from "../imports/document";
+import { parseDocument } from "../imports/read";
+import { commitImport, markDuplicates, stageImport, undoImport, type StagedItem } from "../imports/statement";
 
 export const importsRouter = Router();
 
@@ -36,8 +36,7 @@ importsRouter.post("/preview", previewLimiter, express.raw({ type: () => true, l
   if (!kind) return res.status(415).json({ error: "unsupported", message: "Envie um PDF, CSV, Excel (.xlsx) ou OFX." });
 
   try {
-    const text = await readDocumentText(buffer, kind);
-    const parsed = kind === "ofx" ? parseOfx(text) : await parseStatement(text, "", workspaceId);
+    const parsed = await parseDocument(buffer, kind, "", workspaceId);
     const staged = await stageImport(parsed, account, workspaceId);
     if (staged.items.length === 0) return res.status(422).json({ error: "empty", message: "Não encontrei lançamentos nesse arquivo." });
     res.json(staged);

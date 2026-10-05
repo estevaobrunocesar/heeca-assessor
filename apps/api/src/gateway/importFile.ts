@@ -1,8 +1,8 @@
 import { format } from "date-fns";
 import type { StatementLine } from "../ai/schema";
-import { readDocumentText, type DocumentKind } from "../imports/document";
-import { parseStatement, resolveImportAccount, stageImport, type StagedImport } from "../imports/statement";
-import { parseOfx } from "../imports/ofx";
+import type { DocumentKind } from "../imports/document";
+import { parseDocument } from "../imports/read";
+import { resolveImportAccount, stageImport, type StagedImport } from "../imports/statement";
 
 const brl = (value: number) =>
   value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }).replace(/ /g, " ");
@@ -21,9 +21,8 @@ export async function readAndStageDocument(
   caption: string,
   user: { workspaceId: string },
 ): Promise<ReadDocumentResult> {
-  const text = await readDocumentText(buffer, kind);
-  // An OFX file is already structured: read it directly, no AI involved.
-  const parsed = kind === "ofx" ? parseOfx(text) : await parseStatement(text, caption, user.workspaceId);
+  // OFX is read directly; a PDF whose text is unreadable is read from its page images (see imports/read.ts).
+  const parsed = await parseDocument(buffer, kind, caption, user.workspaceId);
 
   const usable = parsed.lines.filter((l) => l.tipo !== "IGNORAR");
   if (usable.length === 0) return { kind: "empty" };

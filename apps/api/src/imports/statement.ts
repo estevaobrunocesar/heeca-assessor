@@ -62,6 +62,44 @@ export function installmentIsInSource(line: StatementLine, chunk: string): boole
     .some((row) => marker.test(row) && words.every((w) => normalizeText(row).includes(w)));
 }
 
+/**
+ * Every number written in the text, in cents, under each plausible reading ("1.234,56", "1,234.56", "23.5",
+ * "1.200"), so a value is found whichever convention the bank used.
+ */
+export function amountsInText(text: string): Set<number> {
+  const found = new Set<number>();
+  const add = (n: number) => {
+    if (Number.isFinite(n)) found.add(Math.round(n * 100));
+  };
+  const read = (token: string) => {
+    const hasDot = token.includes(".");
+    const hasComma = token.includes(",");
+    if (hasDot && hasComma) {
+      const decimalIsComma = token.lastIndexOf(",") > token.lastIndexOf(".");
+      add(Number(decimalIsComma ? token.replace(/\./g, "").replace(",", ".") : token.replace(/,/g, "")));
+    } else if (hasComma) {
+      add(Number(token.replace(",", "."))); // decimal comma
+      if (/^\d{1,3}(,\d{3})+$/.test(token)) add(Number(token.replace(/,/g, ""))); // or thousands
+    } else if (hasDot) {
+      add(Number(token)); // decimal point
+      if (/^\d{1,3}(\.\d{3})+$/.test(token)) add(Number(token.replace(/\./g, ""))); // or thousands
+    } else {
+      add(Number(token));
+    }
+  };
+  for (const token of text.match(/\d[\d.,]*\d|\d/g) ?? []) {
+    read(token);
+    // In a CSV the comma also separates columns: "Parcela 2/5,199.90" must still yield 199.90 on its own.
+    if (token.includes(",")) for (const piece of token.split(",")) if (piece) read(piece);
+  }
+  return found;
+}
+
+/** A line is only trusted if its amount is actually written in the source: the model must not invent values. */
+export function amountIsInSource(valor: number, known: Set<number>): boolean {
+  return known.has(Math.round(Math.abs(valor) * 100));
+}
+
 /** Reads the whole document, one chunk at a time, into a flat list of entries. */
 export async function parseStatement(text: string, caption: string, workspaceId: string): Promise<ParsedDocument> {
   const chunks = chunkText(text);
@@ -76,7 +114,13 @@ export async function parseStatement(text: string, caption: string, workspaceId:
     const result = await extractStatementChunk(chunk, header, caption, workspaceId, today);
     if (index === 0 || documentType === "OUTRO") documentType = result.tipo_documento;
     accountMention ??= result.conta;
+    const known = amountsInText(chunk);
     for (const line of result.lancamentos) {
+      // A value that is not in the text was made up by the model: better to lose a line than to invent money.
+      if (!amountIsInSource(line.valor, known)) {
+        console.warn(`Dropped an imported line whose amount (${line.valor}) is not in the source text.`);
+        continue;
+      }
       if (line.parcela_total && !installmentIsInSource(line, chunk)) {
         line.parcela_atual = null;
         line.parcela_total = null;
