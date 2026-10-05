@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { MessageCircle, Sparkles, TrendingUp } from "lucide-react";
 import { Logo } from "../components/Logo";
@@ -30,6 +30,14 @@ function LoginForm() {
   const [mfaToken, setMfaToken] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [useRecovery, setUseRecovery] = useState(false);
+  const [ssoUrl, setSsoUrl] = useState<string | null>(null);
+
+  // An error coming back from the portal sign-in, and the address of the portal button.
+  useEffect(() => {
+    const ssoError = searchParams.get("sso_error");
+    if (ssoError) setError(ssoError);
+    fetch("/api/portal").then((r) => r.json()).then((d) => setSsoUrl(d.ssoUrl)).catch(() => {});
+  }, [searchParams]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -227,6 +235,11 @@ function LoginForm() {
             <button type="submit" disabled={loading} className="btn btn-primary" style={{ marginTop: 8, justifyContent: "center" }}>
               {loading ? "Entrando…" : "Entrar"}
             </button>
+            {ssoUrl && (
+              <a href={ssoUrl} className="btn btn-ghost" style={{ justifyContent: "center", textDecoration: "none" }}>
+                Entrar com conta Heeca
+              </a>
+            )}
           </div>
           )}
         </form>

@@ -37,9 +37,18 @@ usersRouter.post("/", requireAdmin, async (req, res) => {
     return res.status(400).json({ error: "name, email and password are required" });
   }
 
+  const workspaceId = req.auth!.workspaceId;
+  const workspace = await prisma.workspace.findUniqueOrThrow({ where: { id: workspaceId }, select: { heecaMaxUsers: true } });
+  if (workspace.heecaMaxUsers !== null && (await prisma.user.count({ where: { workspaceId } })) >= workspace.heecaMaxUsers) {
+    return res.status(403).json({ error: "user_limit", max: workspace.heecaMaxUsers, message: `O plano atual permite até ${workspace.heecaMaxUsers} usuário(s).` });
+  }
+  if (await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() }, select: { id: true } })) {
+    return res.status(409).json({ error: "Já existe um usuário com esse e-mail." });
+  }
+
   const user = await prisma.user.create({
     data: {
-      workspaceId: req.auth!.workspaceId,
+      workspaceId,
       name,
       email: email.trim().toLowerCase(),
       passwordHash: await hashPassword(password),

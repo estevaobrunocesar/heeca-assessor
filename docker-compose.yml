@@ -26,6 +26,10 @@ services:
       # Twilio template used by the weekly summary outside the 24h window. Empty = not set.
       PUBLIC_API_URL: ${PUBLIC_API_URL:-}
       TWILIO_SUMMARY_TEMPLATE_SID: ${TWILIO_SUMMARY_TEMPLATE_SID:-}
+      # Heeca portal integration (provision, entitlement, SSO). Empty secret = integration off.
+      HEECA_PLATFORM_SECRET: ${HEECA_PLATFORM_SECRET:-}
+      HEECA_PORTAL_URL: ${HEECA_PORTAL_URL:-}
+      MIGRATE_ON_START: ${MIGRATE_ON_START:-true}
       PORT: 3001
     depends_on:
       - db
@@ -35,6 +39,7 @@ services:
     restart: unless-stopped
     environment:
       API_URL: http://api:3001
+      HEECA_PORTAL_URL: ${HEECA_PORTAL_URL:-}
     depends_on:
       - api
 

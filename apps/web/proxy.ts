@@ -21,6 +21,6 @@ export default function proxy(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!api/health|api/login|api/logout|api/forgot-password|api/reset-password|_next/static|_next/image|favicon.ico).*)",
+    "/((?!api/health|api/portal|sso/heeca|api/login|api/logout|api/forgot-password|api/reset-password|_next/static|_next/image|favicon.ico).*)",
   ],
 };

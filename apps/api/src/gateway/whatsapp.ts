@@ -28,6 +28,7 @@ import { answerBillList, handleBillCreate, handleBillPayment, isBillListQuery, m
 import { checkBudgetAlert } from "../financial/budgets";
 import { checkSpendingAlerts } from "../financial/smartAlerts";
 import { prisma } from "../db/client";
+import { accessOf, portalUrl } from "../heeca/service";
 
 // Replies are sent as TwiML in the webhook response, not via the REST
 // client, so no Twilio client needs to be constructed here.
@@ -144,6 +145,11 @@ async function processIncomingWhatsapp(req: Request, res: Response) {
   const user = await findUserByPhone(from);
   if (!user) {
     return sendReply("Esse número não está cadastrado como usuário do Heeca Assist. Peça ao administrador para te cadastrar.");
+  }
+
+  // The portal blocked this account (unpaid, suspended...): answer briefly and do no work.
+  if ((await accessOf(user.workspaceId)).blocked) {
+    return sendReply(`⚠️ O acesso ao Heeca Assist está suspenso. Regularize sua assinatura em ${portalUrl()}/conta para voltar a usar.`);
   }
 
   // Opens the 24h window in which we may write to this person first (the weekly summary relies on it).

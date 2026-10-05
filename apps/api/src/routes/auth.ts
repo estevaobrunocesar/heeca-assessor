@@ -1,5 +1,7 @@
 import { Router } from "express";
-import { login, verifyMfaChallenge } from "../auth/service";
+import { issueSessionToken, login, verifyMfaChallenge } from "../auth/service";
+import { HeecaError, claimTokenOnce, verifySsoToken } from "../heeca/signature";
+import { portalUrl, resolveSsoUser } from "../heeca/service";
 import { recordAudit } from "../audit/audit";
 import { beginMfaSetup, completeMfaLogin, disableMfa, enableMfa, mfaStatus } from "../auth/mfaService";
 import { requireAuth } from "../auth/middleware";
@@ -85,10 +87,42 @@ authRouter.post("/reset-password", async (req, res) => {
 authRouter.get("/me", requireAuth, async (req, res) => {
   const user = await prisma.user.findUnique({
     where: { id: req.auth!.sub },
-    select: { id: true, name: true, role: true, whatsappPhone: true },
+    select: { id: true, name: true, role: true, whatsappPhone: true, workspace: { select: { heecaPlan: true, heecaStatus: true, heecaBlocked: true, heecaWarning: true, heecaPeriodEnd: true, heecaTrialEndsAt: true } } },
   });
   if (!user) return res.status(404).json({ error: "User not found" });
-  res.json(user);
+  const { workspace, ...rest } = user;
+  // The portal owns billing: the panel only shows the state and points to the account page there.
+  res.json({
+    ...rest,
+    subscription: {
+      managed: workspace.heecaStatus !== null,
+      plan: workspace.heecaPlan,
+      status: workspace.heecaStatus,
+      blocked: workspace.heecaBlocked,
+      warning: workspace.heecaWarning,
+      periodEnd: workspace.heecaPeriodEnd,
+      trialEndsAt: workspace.heecaTrialEndsAt,
+      accountUrl: `${portalUrl()}/conta`,
+    },
+  });
+});
+
+// Sign-in through the Heeca portal: the 60-second token it issued (signed with the shared secret) is the
+// credential. The web app calls this and sets the session cookie itself.
+authRouter.post("/sso", async (req, res) => {
+  const { token } = req.body as { token?: string };
+  if (!token) return res.status(400).json({ error: "Token ausente." });
+  try {
+    const claims = verifySsoToken(token);
+    if (!claimTokenOnce(claims.jti)) throw new HeecaError("Este link de acesso já foi usado. Volte ao portal Heeca e abra o sistema de novo.", 401);
+    const { userId, workspaceId, role } = await resolveSsoUser(claims);
+    void recordAudit({ workspaceId, userId, action: "LOGIN_SSO", status: 200, ip: req.ip });
+    res.json({ token: issueSessionToken({ id: userId, role, workspaceId }) });
+  } catch (err) {
+    if (err instanceof HeecaError) return res.status(err.status).json({ error: err.message });
+    console.error("SSO failed:", err);
+    res.status(500).json({ error: "Não foi possível entrar pela conta Heeca." });
+  }
 });
 
 authRouter.get("/mfa/status", requireAuth, async (req, res) => {

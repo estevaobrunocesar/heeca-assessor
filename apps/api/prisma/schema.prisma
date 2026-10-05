@@ -73,6 +73,19 @@ model Workspace {
   name      String
   createdAt DateTime @default(now())
 
+  // Mirror of the subscription kept by the Heeca portal (the portal owns billing; here it only gates access).
+  slug                String?   @unique
+  heecaSubscriptionId String?   @unique
+  heecaAccountId      String?
+  heecaPlan           String?
+  heecaStatus         String?
+  heecaBlocked        Boolean   @default(false)
+  heecaWarning        Boolean   @default(false)
+  heecaMaxUsers       Int?
+  heecaTrialEndsAt    DateTime?
+  heecaPeriodEnd      DateTime?
+  heecaSyncedAt       DateTime?
+
   users          User[]
   accounts       Account[]
   categories     Category[]

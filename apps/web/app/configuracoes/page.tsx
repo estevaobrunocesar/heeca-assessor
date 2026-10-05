@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Download, TriangleAlert } from "lucide-react";
 import { MfaCard } from "../components/MfaCard";
+import { SubscriptionCard } from "../components/SubscriptionNotice";
 
 export default function ConfiguracoesPage() {
   const router = useRouter();
@@ -51,6 +52,8 @@ export default function ConfiguracoesPage() {
     <main style={{ padding: "28px 28px 48px" }}>
       <h1 style={{ fontSize: 24 }}>Configurações</h1>
       <p style={{ color: "var(--muted)", fontSize: 14, marginTop: 4 }}>Segurança, dados e privacidade</p>
+
+      <SubscriptionCard />
 
       <MfaCard />
 

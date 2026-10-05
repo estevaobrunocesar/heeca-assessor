@@ -26,6 +26,7 @@ import { biRouter } from "./routes/bi";
 import { forecastRouter } from "./routes/forecast";
 import { auditRouter } from "./routes/audit";
 import { auditChanges } from "./audit/audit";
+import { heecaRouter } from "./routes/heeca";
 import { applyStatusCallback } from "./gateway/deliveries";
 import { insightsRouter } from "./routes/insights";
 import { peopleRouter } from "./routes/people";
@@ -41,7 +42,8 @@ process.on("uncaughtException", (err) => console.error("Uncaught exception:", er
 const app = express();
 app.set("trust proxy", 1); // behind Traefik — needed for express-rate-limit to see the real client IP
 app.use(express.urlencoded({ extended: false }));
-app.use(express.json());
+// Keep the raw bytes: the portal signs the exact body (see routes/heeca.ts).
+app.use(express.json({ verify: (req, _res, buf) => { (req as unknown as { rawBody?: Buffer }).rawBody = buf; } }));
 
 const webhookLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -91,6 +93,7 @@ app.get("/reports/:token/:filename", webhookLimiter, (req, res) => {
   res.send(file.buffer);
 });
 app.use("/api", auditChanges);
+app.use("/api/heeca", webhookLimiter, heecaRouter); // signed by the portal, not by a user session
 app.use("/api/auth", authLimiter, authRouter);
 
 app.use("/api/dashboard", requireAuth, dashboardRouter);

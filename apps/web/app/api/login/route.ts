@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { API_URL, SESSION_COOKIE } from "../../../lib/api";
+import { forwardedFor } from "../../../lib/clientIp";
 
 export async function POST(req: Request) {
   const { email, password } = await req.json();
 
   const apiRes = await fetch(`${API_URL}/api/auth/login`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...forwardedFor(req) },
     body: JSON.stringify({ email, password }),
   });
 

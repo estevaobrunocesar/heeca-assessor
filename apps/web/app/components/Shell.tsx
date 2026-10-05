@@ -5,10 +5,12 @@ import { usePathname } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { PhoneLinkModal } from "./PhoneLinkModal";
+import { BlockedScreen, WarningStrip, useSubscription } from "./SubscriptionNotice";
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const subscription = useSubscription();
 
   if (pathname === "/login") {
     return <>{children}</>;
@@ -19,9 +21,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <Sidebar collapsed={collapsed} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <Topbar onToggleSidebar={() => setCollapsed((v) => !v)} />
-        {children}
+        <WarningStrip subscription={subscription} />
+        {subscription?.blocked ? <BlockedScreen subscription={subscription} /> : children}
       </div>
-      <PhoneLinkModal />
+      {!subscription?.blocked && <PhoneLinkModal />}
     </div>
   );
 }
