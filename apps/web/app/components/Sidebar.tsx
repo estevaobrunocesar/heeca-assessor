@@ -20,6 +20,8 @@ import {
   Settings,
 } from "lucide-react";
 import { Logo } from "./Logo";
+import { PlanCard } from "./PlanCard";
+import type { Subscription } from "./SubscriptionNotice";
 
 export const LINKS = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -39,7 +41,7 @@ export const LINKS = [
   { href: "/configuracoes", label: "Configurações", icon: Settings },
 ];
 
-export function Sidebar({ collapsed }: { collapsed: boolean }) {
+export function Sidebar({ collapsed, subscription = null }: { collapsed: boolean; subscription?: Subscription | null }) {
   const pathname = usePathname();
 
   return (
@@ -51,13 +53,15 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
         background: "var(--sidebar-bg)",
         padding: "20px 14px",
         transition: "width 0.15s ease",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
       <div style={{ padding: "0 6px", marginBottom: 28 }}>
         <Logo compact={collapsed} />
       </div>
 
-      <nav style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <nav className="app-sidebar-nav" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         {LINKS.map((link) => {
           const active = pathname === link.href;
           const Icon = link.icon;
@@ -86,6 +90,10 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
           );
         })}
       </nav>
+      {/* The plan sits at the foot; margin-top auto keeps it there when the menu is short. */}
+      <div style={{ flexShrink: 0, paddingTop: 12 }}>
+        <PlanCard subscription={subscription} collapsed={collapsed} />
+      </div>
     </aside>
   );
 }

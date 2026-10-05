@@ -299,8 +299,21 @@ td {
   top: 0;
   align-self: flex-start;
   height: 100vh;
-  overflow-x: hidden;
+  overflow: hidden; /* only the menu list scrolls (see .app-sidebar-nav): the plan card stays in view */
+}
+
+.app-sidebar-nav {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+/* Short windows: keep the plan card to its essentials. */
+@media (max-height: 760px) {
+  .plan-extra {
+    display: none;
+  }
 }
 
 .app-topbar {

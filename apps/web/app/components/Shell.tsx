@@ -20,7 +20,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="app-shell">
-      <Sidebar collapsed={collapsed} />
+      <Sidebar collapsed={collapsed} subscription={subscription} />
       <div className="app-main-col">
         <Topbar onToggleSidebar={() => setCollapsed((v) => !v)} />
         <WarningStrip subscription={subscription} />

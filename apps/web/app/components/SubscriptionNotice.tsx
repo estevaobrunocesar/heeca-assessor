@@ -12,6 +12,8 @@ export type Subscription = {
   warning: boolean;
   periodEnd: string | null;
   trialEndsAt: string | null;
+  usersUsed?: number;
+  usersMax?: number | null;
   accountUrl: string;
 };
 

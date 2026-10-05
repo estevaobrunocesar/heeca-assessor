@@ -87,7 +87,7 @@ authRouter.post("/reset-password", async (req, res) => {
 authRouter.get("/me", requireAuth, async (req, res) => {
   const user = await prisma.user.findUnique({
     where: { id: req.auth!.sub },
-    select: { id: true, name: true, role: true, whatsappPhone: true, workspace: { select: { heecaPlan: true, heecaStatus: true, heecaBlocked: true, heecaWarning: true, heecaPeriodEnd: true, heecaTrialEndsAt: true } } },
+    select: { id: true, name: true, role: true, whatsappPhone: true, workspace: { select: { heecaPlan: true, heecaStatus: true, heecaBlocked: true, heecaWarning: true, heecaPeriodEnd: true, heecaTrialEndsAt: true, heecaMaxUsers: true, _count: { select: { users: true } } } } },
   });
   if (!user) return res.status(404).json({ error: "User not found" });
   const { workspace, ...rest } = user;
@@ -102,6 +102,9 @@ authRouter.get("/me", requireAuth, async (req, res) => {
       warning: workspace.heecaWarning,
       periodEnd: workspace.heecaPeriodEnd,
       trialEndsAt: workspace.heecaTrialEndsAt,
+      // Seats used and allowed by the plan (null = no limit), so the panel can show how close the account is to it.
+      usersUsed: workspace._count.users,
+      usersMax: workspace.heecaMaxUsers,
       accountUrl: `${portalUrl()}/conta`,
     },
   });
