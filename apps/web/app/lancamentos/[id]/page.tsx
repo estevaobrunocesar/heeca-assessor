@@ -76,7 +76,7 @@ export default async function TransactionDetailPage({ params }: { params: Promis
 
       <div className="card" style={{ padding: 20, marginTop: 20 }}>
         <h2 style={{ fontSize: 15, marginBottom: 14 }}>Informações financeiras</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(190px, 100%), 1fr))", gap: 16 }}>
           <Field label="Valor" value={brl(t.amount)} />
           <Field label="Tipo" value={TYPE_LABEL[t.type]} />
           <Field label="Categoria" value={t.category ? (t.category.parent ?? t.category.name) : null} />
@@ -93,7 +93,7 @@ export default async function TransactionDetailPage({ params }: { params: Promis
 
       <div className="card" style={{ padding: 20, marginTop: 16 }}>
         <h2 style={{ fontSize: 15, marginBottom: 14 }}>Origem</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(190px, 100%), 1fr))", gap: 16 }}>
           <Field label="Canal" value={origin.channel} />
           <Field label="Método" value={origin.method} />
           <Field label="Registrado em" value={stamp(t.createdAt)} />

@@ -136,7 +136,7 @@ export default async function GoalsPage() {
         </form>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 16, marginTop: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(340px, 100%), 1fr))", gap: 16, marginTop: 20 }}>
         {goals.map((g) => {
           const status = statusLine(g);
           const barColor = g.state === "CONCLUIDA" ? "var(--green)" : g.state === "VENCIDA" || g.behind ? "var(--red)" : "var(--blue)";

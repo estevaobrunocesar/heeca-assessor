@@ -101,7 +101,7 @@ export default async function BillsPage() {
         </p>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginTop: 24 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(220px, 100%), 1fr))", gap: 14, marginTop: 24 }}>
         <div className="card" style={{ padding: 16 }}>
           <div style={{ fontSize: 13, color: "var(--muted)" }}>Total pendente</div>
           <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4 }}>{formatBRL(sum(pending))}</div>

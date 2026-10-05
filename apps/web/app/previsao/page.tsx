@@ -67,7 +67,7 @@ export default async function ForecastPage({ searchParams }: { searchParams: Pro
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 16, marginTop: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(210px, 100%), 1fr))", gap: 16, marginTop: 16 }}>
         {cards.map((c) => (
           <div key={c.label} className="card" style={{ padding: 18 }}>
             <div style={{ fontSize: 13, color: "var(--muted)" }}>{c.label}</div>

@@ -77,7 +77,7 @@ export default async function BiPage({ searchParams }: { searchParams: Promise<R
         Receitas, despesas, patrimônio e hábitos de gasto. Os gráficos de 12 meses são sempre os últimos 12 meses; as seções por período seguem o filtro abaixo.
       </p>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16, marginTop: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(220px, 100%), 1fr))", gap: 16, marginTop: 20 }}>
         {kpis.map((k) => (
           <div key={k.label} className="card" style={{ padding: 18 }}>
             <div style={{ fontSize: 13, color: "var(--muted)" }}>{k.label}</div>
@@ -98,7 +98,7 @@ export default async function BiPage({ searchParams }: { searchParams: Promise<R
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(380px, 1fr))", gap: 16, marginTop: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(380px, 100%), 1fr))", gap: 16, marginTop: 20 }}>
         <div className="card" style={{ padding: 20 }}>
           <h2 style={{ fontSize: 15 }}>Receita x despesa</h2>
           <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 2 }}>Últimos 12 meses</p>
@@ -163,7 +163,7 @@ export default async function BiPage({ searchParams }: { searchParams: Promise<R
         ))}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 16, marginTop: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(340px, 100%), 1fr))", gap: 16, marginTop: 16 }}>
         <div className="card" style={{ padding: 20 }}>
           <h2 style={{ fontSize: 15 }}>Despesas por categoria</h2>
           <div style={{ marginTop: 16 }}>
@@ -185,7 +185,7 @@ export default async function BiPage({ searchParams }: { searchParams: Promise<R
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 16, marginTop: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(340px, 100%), 1fr))", gap: 16, marginTop: 16 }}>
         <div className="card" style={{ padding: 20 }}>
           <h2 style={{ fontSize: 15 }}>Recorrentes, variáveis e extraordinárias</h2>
           <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 2 }}>Despesas do período, separadas por natureza</p>

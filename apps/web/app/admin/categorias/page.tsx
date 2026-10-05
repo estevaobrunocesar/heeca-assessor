@@ -93,7 +93,7 @@ export default async function CategoriesAdminPage() {
       </div>
 
       <h2 style={{ fontSize: 15, marginTop: 28, color: "var(--muted)" }}>Despesas</h2>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14, marginTop: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(220px, 100%), 1fr))", gap: 14, marginTop: 12 }}>
         {expenseCategories.map((cat) => {
           const Icon = ICONS[cat.name] ?? Tag;
           return (
@@ -143,7 +143,7 @@ export default async function CategoriesAdminPage() {
       </div>
 
       <h2 style={{ fontSize: 15, marginTop: 32, color: "var(--muted)" }}>Receitas</h2>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14, marginTop: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(220px, 100%), 1fr))", gap: 14, marginTop: 12 }}>
         {incomeCategories.map((cat) => (
           <div key={cat.id} className="card" style={{ padding: 16, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>

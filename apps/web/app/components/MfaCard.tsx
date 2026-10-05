@@ -107,6 +107,7 @@ export function MfaCard() {
             celular, cada código entra uma única vez no lugar do aplicativo.
           </p>
           <div
+            className="keep-cols"
             style={{
               display: "grid",
               gridTemplateColumns: "1fr 1fr",

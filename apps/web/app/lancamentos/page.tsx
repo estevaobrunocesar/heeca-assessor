@@ -122,7 +122,7 @@ export default async function LancamentosPage({
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 6, marginTop: 20 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 20 }}>
         {TABS.map((tab) => (
           <Link
             key={tab.label}

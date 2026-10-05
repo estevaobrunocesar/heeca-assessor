@@ -80,7 +80,7 @@ export default async function RelatoriosPage({
             {p.label}
           </Link>
         ))}
-        <form method="get" style={{ display: "flex", gap: 6, alignItems: "center", marginLeft: 8 }}>
+        <form method="get" style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginLeft: 8 }}>
           <input type="date" name="from" defaultValue={from} required className="field" style={{ fontSize: 13 }} />
           <span style={{ color: "var(--muted)", fontSize: 13 }}>até</span>
           <input type="date" name="to" defaultValue={to} required className="field" style={{ fontSize: 13 }} />
@@ -110,7 +110,7 @@ export default async function RelatoriosPage({
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14, marginTop: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(200px, 100%), 1fr))", gap: 14, marginTop: 16 }}>
             {[
               { label: "Receitas", value: data.income, color: "var(--green)" },
               { label: "Despesas", value: data.expense, color: "var(--red)" },
@@ -181,7 +181,7 @@ export default async function RelatoriosPage({
             <>
               <h2 style={{ fontSize: 15, marginTop: 32, color: "var(--muted)" }}>Gastos que se repetem</h2>
               <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 4 }}>Análise dos últimos 6 meses, independente do período acima.</p>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 14, marginTop: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(320px, 100%), 1fr))", gap: 14, marginTop: 12 }}>
                 {repeated.recurring.length > 0 && (
                   <div className="card" style={{ overflow: "hidden" }}>
                     <div style={{ padding: "14px 18px", fontWeight: 600, fontSize: 14 }}>Recorrentes (todo mês)</div>

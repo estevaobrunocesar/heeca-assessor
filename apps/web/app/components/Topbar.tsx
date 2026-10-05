@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Menu, Bell, ChevronDown, Moon, Sun, LogOut } from "lucide-react";
+import { Logo } from "./Logo";
 
 type Me = { name: string; role: "ADMIN" | "USER" };
 
@@ -55,6 +56,7 @@ export function Topbar({ onToggleSidebar }: { onToggleSidebar: () => void }) {
 
   return (
     <header
+      className="app-topbar"
       style={{
         display: "flex",
         alignItems: "center",
@@ -65,12 +67,16 @@ export function Topbar({ onToggleSidebar }: { onToggleSidebar: () => void }) {
     >
       <button
         onClick={onToggleSidebar}
-        className="icon-btn"
+        className="icon-btn topbar-toggle"
         aria-label="Alternar menu lateral"
         style={{ border: "1px solid var(--card-border)" }}
       >
         <Menu size={18} />
       </button>
+
+      <div className="topbar-brand">
+        <Logo onLight />
+      </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <button className="icon-btn" style={{ border: "1px solid var(--card-border)", position: "relative" }} aria-label="Notificações">
@@ -110,7 +116,7 @@ export function Topbar({ onToggleSidebar }: { onToggleSidebar: () => void }) {
               {me ? initials(me.name) : "—"}
             </div>
             {me && (
-              <div style={{ textAlign: "left", lineHeight: 1.2 }}>
+              <div className="topbar-user-label" style={{ textAlign: "left", lineHeight: 1.2 }}>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{me.name}</div>
                 <div style={{ fontSize: 11, color: "var(--muted)" }}>
                   {me.role === "ADMIN" ? "Administrador" : "Usuário"}

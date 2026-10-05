@@ -106,7 +106,7 @@ export default async function AccountsAdminPage() {
         </p>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 16, marginTop: 24 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(260px, 100%), 1fr))", gap: 16, marginTop: 24 }}>
         {accounts.map((a) => {
           const isCard = a.type === "CREDIT_CARD";
           return (

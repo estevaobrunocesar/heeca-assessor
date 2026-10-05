@@ -110,7 +110,7 @@ export default async function DashboardPage() {
         </Link>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 16, marginTop: 24 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(230px, 100%), 1fr))", gap: 16, marginTop: 24 }}>
         {cards.map((c) => {
           const Icon = c.icon;
           return (

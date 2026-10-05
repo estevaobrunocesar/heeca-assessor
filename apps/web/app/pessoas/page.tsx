@@ -62,7 +62,7 @@ export default async function PeoplePage() {
         </p>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 14, marginTop: 24 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(280px, 100%), 1fr))", gap: 14, marginTop: 24 }}>
         {people.map((p) => (
           <div key={p.id} className="card" style={{ padding: 16 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>

@@ -91,7 +91,7 @@ export default async function PersonDashboardPage({
         ))}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16, marginTop: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(220px, 100%), 1fr))", gap: 16, marginTop: 20 }}>
         {cards.map((c) => (
           <div key={c.label} className="card" style={{ padding: 18 }}>
             <div style={{ fontSize: 13, color: "var(--muted)" }}>{c.label}</div>
@@ -108,7 +108,7 @@ export default async function PersonDashboardPage({
         </div>
       ) : (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 16, marginTop: 20 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(320px, 100%), 1fr))", gap: 16, marginTop: 20 }}>
             <div className="card" style={{ padding: 20 }}>
               <h2 style={{ fontSize: 15 }}>Evolução</h2>
               <p style={{ color: "var(--muted)", fontSize: 13, marginTop: 2 }}>Últimos 6 meses</p>

@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { Logo } from "./Logo";
 
-const LINKS = [
+export const LINKS = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/lancamentos", label: "Lançamentos", icon: Receipt },
   { href: "/admin/contas", label: "Contas bancárias", icon: Landmark },
@@ -44,14 +44,13 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
 
   return (
     <aside
+      className="app-sidebar"
       style={{
         width: collapsed ? 76 : 240,
         flexShrink: 0,
         background: "var(--sidebar-bg)",
-        minHeight: "100vh",
         padding: "20px 14px",
         transition: "width 0.15s ease",
-        overflow: "hidden",
       }}
     >
       <div style={{ padding: "0 6px", marginBottom: 28 }}>

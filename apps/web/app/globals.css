@@ -280,3 +280,149 @@ td {
     animation: none !important;
   }
 }
+
+/* ---------- Painel Heeca: casca fixa e responsiva (docs/PADRAO-PAINEL.md da plataforma) ---------- */
+
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.app-main-col {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The menu bars never scroll away with the page, at any width. */
+.app-sidebar {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  height: 100vh;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.app-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--bg);
+}
+
+/* Page content: at most 1240px wide, centred. */
+main {
+  max-width: 1240px;
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+}
+
+.topbar-brand,
+.mobile-nav {
+  display: none;
+}
+
+.mobile-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 44;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.mobile-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(60px + env(safe-area-inset-bottom));
+  z-index: 45;
+  background: var(--card);
+  border-top: 1px solid var(--card-border);
+  border-radius: 16px 16px 0 0;
+  padding: 14px 16px 18px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+/* Phone: the sidebar becomes a bottom bar (4 main items + "Mais"), the top bar shrinks, everything stacks. */
+@media (max-width: 767px) {
+  .app-sidebar,
+  .topbar-toggle {
+    display: none !important;
+  }
+
+  .topbar-brand {
+    display: flex;
+  }
+
+  .topbar-user-label {
+    display: none;
+  }
+
+  .app-topbar {
+    padding: 10px 16px !important;
+  }
+
+  .app-main-col {
+    padding-bottom: calc(76px + env(safe-area-inset-bottom));
+  }
+
+  .mobile-nav {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 46;
+    background: var(--card);
+    border-top: 1px solid var(--card-border);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  main {
+    padding: 20px 16px 32px !important;
+  }
+
+  /* Inline grids with fixed columns stack on a phone; the ones that must stay side by side opt out. */
+  [style*="grid-template-columns"]:not(.keep-cols) {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  /* Wide tables scroll inside their card instead of widening the page. */
+  .card table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .card table td,
+  .card table th {
+    white-space: nowrap;
+  }
+
+  /* Forms and filter bars: each field takes the full line. */
+  form.card > .field,
+  form.card > select,
+  form.card > input {
+    flex: 1 1 100% !important;
+  }
+}
+
+/* Printing is always light, whatever the theme. */
+@media print {
+  :root,
+  :root[data-theme="dark"] {
+    --bg: #ffffff;
+    --card: #ffffff;
+    --card-border: #e5e7eb;
+    --ink: #111113;
+    --muted: #6b7280;
+    --field-bg: #ffffff;
+  }
+
+  .app-sidebar,
+  .app-topbar,
+  .mobile-nav {
+    display: none !important;
+  }
+}
