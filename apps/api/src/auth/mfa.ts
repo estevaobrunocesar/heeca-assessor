@@ -13,7 +13,8 @@ const ISSUER = "Heeca Assist";
 // the database in the clear: AES-256-GCM with a key derived from the server's
 // own secret (MFA_ENCRYPTION_KEY if set, else the JWT secret).
 function encryptionKey(): Buffer {
-  const material = process.env.MFA_ENCRYPTION_KEY ?? process.env.JWT_SECRET;
+  // An empty value counts as "not set" (a platform may pass the variable empty): never hash an empty string.
+  const material = process.env.MFA_ENCRYPTION_KEY || process.env.JWT_SECRET;
   if (!material) throw new Error("MFA_ENCRYPTION_KEY or JWT_SECRET is required");
   return createHash("sha256").update(material).digest();
 }

@@ -19,6 +19,8 @@ services:
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
       TWILIO_WHATSAPP_NUMBER: ${TWILIO_WHATSAPP_NUMBER}
       JWT_SECRET: ${JWT_SECRET}
+      # Encrypts the two-step-verification secrets. Define it once and never change it; empty = falls back to JWT_SECRET.
+      MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:-}
       RESEND_API_KEY: ${RESEND_API_KEY}
       RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL}
       WEB_URL: ${WEB_URL}

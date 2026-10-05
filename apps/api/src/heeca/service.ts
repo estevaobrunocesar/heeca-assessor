@@ -12,7 +12,7 @@ import { HeecaError, type SsoClaims } from "./signature";
  *  - mirror plan, status and access on it (entitlement), which the access gate reads;
  *  - turn a portal sign-in token into a local session (SSO).
  */
-export const portalUrl = () => (process.env.HEECA_PORTAL_URL ?? "https://heeca.com.br").replace(/\/+$/, "");
+export const portalUrl = () => (process.env.HEECA_PORTAL_URL || "https://heeca.com.br").replace(/\/+$/, "");
 
 export type Entitlement = {
   subscriptionId: string;
