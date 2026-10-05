@@ -7,4 +7,5 @@ COPY . .
 RUN npx prisma generate
 RUN npm run build
 EXPOSE 3001
-CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]
+# MIGRATE_ON_START=true (the default) applies pending database migrations before starting; set it to false to skip.
+CMD ["sh", "-c", "if [ \"${MIGRATE_ON_START:-true}\" = \"true\" ]; then npx prisma migrate deploy; fi && npm start"]

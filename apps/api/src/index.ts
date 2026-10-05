@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import rateLimit from "express-rate-limit";
 import cron from "node-cron";
+import { prisma } from "./db/client";
 import { runReportEmails } from "./reports/emailReport";
 import { runGoalAlerts } from "./financial/goalAlerts";
 import { runWeeklySummaries } from "./financial/weeklySummary";
@@ -67,6 +68,17 @@ app.post("/webhook/whatsapp/status", webhookLimiter, verifyTwilioSignature, asyn
   res.sendStatus(204);
 });
 app.get("/health", (_req, res) => res.json({ ok: true }));
+
+// For the platform / Coolify: 200 only when the database answers, 503 otherwise (so a broken deploy is not marked healthy).
+app.get("/api/health", async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ ok: true, db: true });
+  } catch (err) {
+    console.error("Health check: database unreachable:", err);
+    res.status(503).json({ ok: false, db: false });
+  }
+});
 
 // Public on purpose: Twilio fetches WhatsApp attachments without credentials.
 // Access is the unguessable, short-lived token in the path (see reports/store).
